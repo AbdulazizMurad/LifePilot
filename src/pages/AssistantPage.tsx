@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { Header } from '@/components/Header'
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { organize, planDayWithAI } from '@/lib/ai'
 import type { OrganizerResult } from '@/lib/types'
 import { IconSend, IconSparkle } from '@/components/ui/icons'
-import { fmtTime } from '@/lib/date'
+import { fmtTime, format } from '@/lib/date'
 
 interface Msg {
   role: 'user' | 'assistant'
@@ -23,6 +24,7 @@ const SUGGESTIONS = [
 export function AssistantPage() {
   const { profile } = useAuth()
   const { tasks, events, updateTask } = useData()
+  const navigate = useNavigate()
   const [log, setLog] = useState<Msg[]>([
     {
       role: 'assistant',
@@ -77,9 +79,10 @@ export function AssistantPage() {
   }
 
   const applyProposal = async () => {
-    if (!proposal) return
+    if (!proposal || !proposal.blocks.length) return
+    const blocks = proposal.blocks
     await Promise.all(
-      proposal.blocks.map((b) =>
+      blocks.map((b) =>
         updateTask(b.task_id, {
           scheduled_start: b.start,
           scheduled_end: b.end,
@@ -89,8 +92,15 @@ export function AssistantPage() {
       ),
     )
     setProposal(null)
-    setLog((l) => [...l, { role: 'assistant', content: '✅ Applied to your calendar. Check the Day view!' }])
+    const firstDay = new Date(blocks[0].start)
+    const dayLabel = format(firstDay, 'EEE, MMM d')
+    setLog((l) => [
+      ...l,
+      { role: 'assistant', content: `✅ Added ${blocks.length} block${blocks.length > 1 ? 's' : ''} to ${dayLabel}. Opening your Day view…` },
+    ])
     scrollDown()
+    // Jump straight to that day so the user sees it on the calendar.
+    setTimeout(() => navigate('/day', { state: { date: firstDay.toISOString() } }), 700)
   }
 
   return (
@@ -112,11 +122,14 @@ export function AssistantPage() {
             </div>
             <div className="stack" style={{ marginBottom: 10 }}>
               {proposal.blocks.map((b, i) => (
-                <div key={i} className="between tiny" style={{ gap: 8 }}>
-                  <span style={{ color: 'var(--accent)', minWidth: 68 }}>
-                    {fmtTime(b.start)}–{fmtTime(b.end)}
-                  </span>
-                  <span className="grow">{b.title}</span>
+                <div key={i} className="col" style={{ gap: 2 }}>
+                  <div className="between tiny" style={{ gap: 8 }}>
+                    <span style={{ color: 'var(--accent)', minWidth: 96 }}>
+                      {format(new Date(b.start), 'EEE')} · {fmtTime(b.start)}–{fmtTime(b.end)}
+                    </span>
+                    <span className="grow" style={{ fontWeight: 600 }}>{b.title}</span>
+                  </div>
+                  {b.reason && <span className="tiny dim" style={{ paddingLeft: 4 }}>{b.reason}</span>}
                 </div>
               ))}
             </div>

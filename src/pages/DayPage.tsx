@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { Header } from '@/components/Header'
@@ -15,7 +16,15 @@ import { IconChevronL, IconChevronR, IconSparkle } from '@/components/ui/icons'
 export function DayPage() {
   const { profile } = useAuth()
   const { tasks, events, updateTask, toggleDone } = useData()
-  const [day, setDay] = useState(new Date())
+  const location = useLocation()
+  const initialDate = (location.state as { date?: string } | null)?.date
+  const [day, setDay] = useState(initialDate ? new Date(initialDate) : new Date())
+
+  // Allow other screens (e.g. the AI applying a plan) to open a specific day.
+  useEffect(() => {
+    const d = (location.state as { date?: string } | null)?.date
+    if (d) setDay(new Date(d))
+  }, [location.state])
   const [planning, setPlanning] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [editEvent, setEditEvent] = useState<EventItem | null>(null)
