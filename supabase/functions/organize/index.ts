@@ -4,7 +4,8 @@
 // Supabase secret (OPENROUTER_API_KEY) and is never sent to the browser.
 //
 // The assistant is constrained to be a task/schedule ORGANIZER only.
-// It refuses unrelated questions.
+// It refuses unrelated questions. When it proposes concrete time blocks
+// it also emits a machine-readable plan the app can apply to the calendar.
 // =========================================================
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
@@ -23,7 +24,6 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, 'Content-Type': 'application/json' },
   })
 
-// ---------- prompt building ----------
 const SYSTEM = `You are "LifePilot", a focused personal productivity and schedule ORGANIZER.
 
 YOUR SCOPE — you ONLY help the user:
@@ -35,15 +35,27 @@ STRICT RULE: If the user asks anything NOT about organizing their own tasks, sch
 "I'm your task organizer, so I can only help you plan and prioritize your tasks — what would you like to get organized?"
 Do not answer the off-topic question at all.
 
-STYLE: Warm, concise, practical. Speak directly to the user. Prefer short paragraphs or tight bullet lists. Use their context (role, working/study hours, sleep, energy peak) to be realistic. Never invent tasks they didn't mention. Times are already in the user's local timezone.`
+STYLE: Warm, concise, practical. Speak directly to the user. Prefer short paragraphs or tight bullet lists. Use their context (role, working/study hours, sleep, energy peak) to be realistic. Never invent tasks they didn't mention. Times are in the user's local timezone.`
+
+const PLAN_PROTOCOL = `When (and ONLY when) you recommend concrete time blocks for the user's existing tasks, append at the very END of your message a single fenced code block in this exact format:
+\`\`\`json
+{"blocks":[{"task_id":"<EXACT id from the task list>","date":"YYYY-MM-DD","start":"HH:MM","end":"HH:MM","reason":"short why"}]}
+\`\`\`
+Rules for the JSON:
+- Use 24-hour local times (e.g. "14:30"). Use the provided "Today" date unless the user names another day.
+- Only include tasks that appear in the task list, referenced by their EXACT id.
+- Do not schedule over the user's fixed commitments, working hours, or sleep.
+- Keep your normal friendly reply ABOVE the code block. Never mention the code block or JSON in your prose.
+If you are only giving advice (not concrete times), do NOT include any code block.`
 
 function fmtClock(t: string | null | undefined): string {
   return t ? t.slice(0, 5) : '—'
 }
 
 // deno-lint-ignore no-explicit-any
-function buildContext(profile: any, tasks: any[], events: any[]): string {
+function buildContext(profile: any, tasks: any[], events: any[], today: string, nowLabel: string): string {
   const lines: string[] = []
+  lines.push(`Today is ${today}. Current local time: ${nowLabel}.`)
   if (profile) {
     lines.push(
       `User role: ${profile.role}. Timezone: ${profile.timezone}. Most focused: ${profile.energy_peak}.`,
@@ -57,22 +69,19 @@ function buildContext(profile: any, tasks: any[], events: any[]): string {
   const PR: Record<number, string> = { 1: 'low', 2: 'normal', 3: 'high', 4: 'urgent' }
   const active = (tasks ?? []).filter((t) => t.status !== 'done')
   if (active.length) {
-    lines.push(`\nOpen tasks (${active.length}):`)
+    lines.push(`\nOpen tasks (reference by exact id):`)
     for (const t of active.slice(0, 40)) {
       const dl = t.deadline ? `, due ${new Date(t.deadline).toLocaleString()}` : ''
-      const est = `${t.duration_minutes}min`
-      lines.push(`- "${t.title}" [${PR[t.priority] ?? 'normal'}, ${est}${dl}] (${t.category})`)
+      lines.push(`- id:${t.id} | "${t.title}" [${PR[t.priority] ?? 'normal'}, ${t.duration_minutes}min${dl}] (${t.category})`)
     }
   } else {
     lines.push('\nNo open tasks.')
   }
   const upcoming = (events ?? []).slice(0, 20)
   if (upcoming.length) {
-    lines.push(`\nFixed commitments:`)
+    lines.push(`\nFixed commitments (do not overlap these):`)
     for (const e of upcoming) {
-      lines.push(
-        `- "${e.title}" ${new Date(e.start_at).toLocaleString()}–${new Date(e.end_at).toLocaleTimeString()}`,
-      )
+      lines.push(`- "${e.title}" ${new Date(e.start_at).toLocaleString()}–${new Date(e.end_at).toLocaleTimeString()}`)
     }
   }
   return lines.join('\n')
@@ -88,12 +97,7 @@ async function callOpenRouter(apiKey: string, messages: any[]): Promise<string> 
       'HTTP-Referer': 'https://lifepilot.app',
       'X-Title': 'LifePilot',
     },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      temperature: 0.4,
-      max_tokens: 500,
-    }),
+    body: JSON.stringify({ model: MODEL, messages, temperature: 0.4, max_tokens: 700 }),
   })
   if (!resp.ok) {
     const text = await resp.text()
@@ -101,6 +105,20 @@ async function callOpenRouter(apiKey: string, messages: any[]): Promise<string> 
   }
   const data = await resp.json()
   return data?.choices?.[0]?.message?.content?.trim() ?? ''
+}
+
+// Pull the optional ```json {blocks:[...]} ``` plan out of the reply.
+function extractPlan(text: string): { reply: string; blocks: unknown[] | null } {
+  const m = text.match(/```json\s*([\s\S]*?)```/i)
+  if (!m) return { reply: text, blocks: null }
+  let blocks: unknown[] | null = null
+  try {
+    const parsed = JSON.parse(m[1])
+    if (Array.isArray(parsed?.blocks)) blocks = parsed.blocks
+  } catch {
+    // ignore malformed JSON — just show the prose
+  }
+  return { reply: text.replace(m[0], '').trim(), blocks }
 }
 
 Deno.serve(async (req: Request) => {
@@ -125,7 +143,9 @@ Deno.serve(async (req: Request) => {
   const tasks = (body.tasks as any[]) ?? []
   // deno-lint-ignore no-explicit-any
   const events = (body.events as any[]) ?? []
-  const context = buildContext(profile, tasks, events)
+  const today = String(body.clientToday ?? new Date().toISOString().slice(0, 10))
+  const nowLabel = String(body.clientNow ?? new Date().toLocaleTimeString())
+  const context = buildContext(profile, tasks, events, today, nowLabel)
 
   try {
     if (mode === 'plan') {
@@ -152,7 +172,7 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, reply })
     }
 
-    // chat mode
+    // chat mode — can produce an applyable plan
     // deno-lint-ignore no-explicit-any
     const history = ((body.history as any[]) ?? []).slice(-6).map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -161,12 +181,14 @@ Deno.serve(async (req: Request) => {
     const message = String(body.message ?? '')
     const messages = [
       { role: 'system', content: SYSTEM },
+      { role: 'system', content: PLAN_PROTOCOL },
       { role: 'system', content: `Current user context:\n${context}` },
       ...history,
       { role: 'user', content: message },
     ]
-    const reply = await callOpenRouter(apiKey, messages)
-    return json({ ok: true, reply })
+    const raw = await callOpenRouter(apiKey, messages)
+    const { reply, blocks } = extractPlan(raw)
+    return json({ ok: true, reply, result: blocks ? { summary: '', blocks } : undefined })
   } catch (e) {
     return json({ ok: false, reply: '', error: (e as Error).message })
   }

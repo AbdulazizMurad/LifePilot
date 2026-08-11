@@ -246,6 +246,83 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- Desktop side navigation (>=1024px) ---------- */
+.side-nav { display: none; }
+
+@media (min-width: 1024px) {
+  .app-layout {
+    display: flex;
+    align-items: stretch;
+    min-height: 100dvh;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .side-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 248px;
+    flex: none;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    padding: 24px 16px;
+    background: rgba(11, 15, 26, 0.6);
+    backdrop-filter: blur(14px);
+    border-right: 1px solid var(--line-soft);
+  }
+  .side-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px 18px;
+  }
+  .side-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    box-shadow: var(--shadow-glow);
+  }
+  .side-title { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .side-links { display: flex; flex-direction: column; gap: 4px; }
+  .side-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: var(--r-md);
+    color: var(--text-2);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  a.side-link:hover .side-link,
+  .side-link:hover { background: var(--bg-2); color: var(--text-1); }
+  .side-link[data-active='true'] {
+    background: rgba(99, 102, 241, 0.16);
+    color: var(--brand-ink);
+  }
+  .side-settings { margin-top: auto; }
+
+  .bottom-nav { display: none; }
+
+  .app-shell {
+    flex: 1;
+    max-width: none;
+    margin: 0;
+    padding-bottom: 40px;
+    border-left: 1px solid var(--line-soft);
+    border-right: 1px solid var(--line-soft);
+    background: rgba(17, 23, 38, 0.35);
+  }
+  /* Anchor the FAB to the right edge of the centered 1000px app. */
+  .fab { right: calc(50% - 500px + 28px); bottom: 28px; }
+}
+
 /* ---------- Empty state ---------- */
 .empty {
   text-align: center;

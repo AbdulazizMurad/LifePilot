@@ -34,13 +34,64 @@ export interface OrganizeResponse {
   error?: string
 }
 
+// Raw block shape the AI emits (local wall-clock, converted client-side).
+interface RawBlock {
+  task_id: string
+  date?: string // YYYY-MM-DD
+  start: string // 'HH:MM' or ISO
+  end: string // 'HH:MM' or ISO
+  reason?: string
+  title?: string
+}
+
+function pad(n: number) {
+  return String(n).padStart(2, '0')
+}
+
+/**
+ * Convert AI blocks (local date + 'HH:MM') into ISO ScheduleBlocks, resolved in
+ * the browser's own timezone (so times land exactly where the user expects).
+ * Blocks referencing unknown task ids are dropped.
+ */
+function normalizeBlocks(raw: RawBlock[], tasks: Task[]): ScheduleBlock[] {
+  const out: ScheduleBlock[] = []
+  for (const b of raw) {
+    const task = tasks.find((t) => t.id === b.task_id)
+    if (!task) continue
+    const toISO = (v: string, date?: string): string | null => {
+      if (!v) return null
+      // already ISO?
+      if (v.includes('T')) {
+        const d = new Date(v)
+        return isNaN(d.getTime()) ? null : d.toISOString()
+      }
+      if (!date) return null
+      const d = new Date(`${date}T${v.length === 5 ? v : v.slice(0, 5)}:00`)
+      return isNaN(d.getTime()) ? null : d.toISOString()
+    }
+    const start = toISO(b.start, b.date)
+    const end = toISO(b.end, b.date)
+    if (!start || !end) continue
+    out.push({ task_id: task.id, title: task.title, start, end, reason: b.reason ?? '' })
+  }
+  return out
+}
+
 export async function organize(req: OrganizeRequest): Promise<OrganizeResponse> {
   try {
+    const now = new Date()
+    const clientToday = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+    const clientNow = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     const { data, error } = await supabase.functions.invoke<OrganizeResponse>('organize', {
-      body: req,
+      body: { ...req, clientToday, clientNow },
     })
     if (error) return { ok: false, reply: '', error: humanError(error.message) }
     if (!data) return { ok: false, reply: '', error: 'Empty response from organizer.' }
+    // Normalize any AI-proposed plan into applyable ISO blocks.
+    if (data.result?.blocks?.length) {
+      const normalized = normalizeBlocks(data.result.blocks as unknown as RawBlock[], req.tasks)
+      data.result = { ...data.result, blocks: normalized }
+    }
     return data
   } catch (e) {
     return { ok: false, reply: '', error: humanError((e as Error).message) }

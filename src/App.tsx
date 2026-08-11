@@ -8,7 +8,7 @@ import { DayPage } from './pages/DayPage'
 import { NowPage } from './pages/NowPage'
 import { AssistantPage } from './pages/AssistantPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { BottomNav } from './components/BottomNav'
+import { BottomNav, SideNav } from './components/BottomNav'
 import { QuickAdd } from './components/QuickAdd'
 import { IconLogo } from './components/ui/icons'
 
@@ -28,16 +28,19 @@ function AppLayout() {
   // Hide the global quick-add on the assistant + settings screens.
   const showFab = !['/assistant', '/settings'].includes(location.pathname)
   return (
-    <div className="app-shell">
-      <Routes>
-        <Route path="/month" element={<MonthPage />} />
-        <Route path="/day" element={<DayPage />} />
-        <Route path="/now" element={<NowPage />} />
-        <Route path="/assistant" element={<AssistantPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/now" replace />} />
-      </Routes>
-      {showFab && <QuickAdd defaultDay={new Date()} />}
+    <div className="app-layout">
+      <SideNav />
+      <div className="app-shell">
+        <Routes>
+          <Route path="/month" element={<MonthPage />} />
+          <Route path="/day" element={<DayPage />} />
+          <Route path="/now" element={<NowPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/now" replace />} />
+        </Routes>
+        {showFab && <QuickAdd defaultDay={new Date()} />}
+      </div>
       <BottomNav />
     </div>
   )
