@@ -4,9 +4,11 @@ import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/ui/Button'
+import { Sheet } from '@/components/ui/Sheet'
+import { TaskForm } from '@/components/TaskForm'
 import { organize, planDayWithAI } from '@/lib/ai'
 import type { OrganizerResult } from '@/lib/types'
-import { IconSend, IconSparkle } from '@/components/ui/icons'
+import { IconSend, IconSparkle, IconPlus } from '@/components/ui/icons'
 import { fmtTime, format } from '@/lib/date'
 
 interface Msg {
@@ -23,8 +25,10 @@ const SUGGESTIONS = [
 
 export function AssistantPage() {
   const { profile } = useAuth()
-  const { tasks, events, updateTask } = useData()
+  const { tasks, events, updateTask, addTask } = useData()
   const navigate = useNavigate()
+  const [showAdd, setShowAdd] = useState(false)
+  const openTasks = tasks.filter((t) => t.status !== 'done')
   const [log, setLog] = useState<Msg[]>([
     {
       role: 'assistant',
@@ -114,6 +118,22 @@ export function AssistantPage() {
           </div>
         ))}
 
+        {openTasks.length === 0 && (
+          <div className="ai-suggest">
+            <div className="row" style={{ gap: 6, marginBottom: 6 }}>
+              <IconSparkle width={16} height={16} color="var(--brand-ink)" />
+              <strong>Add a task to get started</strong>
+            </div>
+            <p className="tiny muted" style={{ marginBottom: 10 }}>
+              I schedule the tasks you’ve saved — right now your list is empty, so there’s nothing
+              for me to organize yet. Add one and I’ll fit it into your day.
+            </p>
+            <Button size="sm" variant="primary" block onClick={() => setShowAdd(true)}>
+              <IconPlus width={16} height={16} /> Add your first task
+            </Button>
+          </div>
+        )}
+
         {proposal && (
           <div className="ai-suggest">
             <div className="row" style={{ gap: 6, marginBottom: 8 }}>
@@ -177,6 +197,16 @@ export function AssistantPage() {
           <IconSend width={20} height={20} />
         </button>
       </div>
+
+      <Sheet open={showAdd} onClose={() => setShowAdd(false)} title="New task">
+        <TaskForm
+          onCancel={() => setShowAdd(false)}
+          onSave={async (input) => {
+            await addTask({ ...input, status: 'todo' })
+            setShowAdd(false)
+          }}
+        />
+      </Sheet>
     </div>
   )
 }

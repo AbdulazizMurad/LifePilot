@@ -201,11 +201,22 @@ Deno.serve(async (req: Request) => {
     const force = hasTasks && (scheduleIntent || (affirmative && assistantOfferedPlan))
 
     const toolChoice = force ? { type: 'function', function: { name: 'propose_schedule' } } : 'auto'
+    // With an empty task list there is nothing real to schedule — make sure the
+    // assistant says so plainly instead of inventing a plan the app can't apply.
+    const noTaskGuidance = hasTasks
+      ? null
+      : {
+          role: 'system',
+          content:
+            "The user currently has NO tasks saved. Do NOT invent tasks and do NOT propose a schedule. In one or two friendly sentences, tell them to add their tasks first using the + button (title, how long it takes, priority, and any deadline), and say you'll organize them right after. Do not call any tool.",
+        }
+
     const msg = await chat(
       apiKey,
       [
         { role: 'system', content: SYSTEM },
         { role: 'system', content: `Current user context:\n${context}` },
+        ...(noTaskGuidance ? [noTaskGuidance] : []),
         ...history,
         { role: 'user', content: message },
       ],
