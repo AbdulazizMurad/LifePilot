@@ -1,0 +1,132 @@
+/* =========================================================
+   LifePilot — Design System
+   Mobile-first, dark-first, glassy modern calendar aesthetic.
+   All design decisions live as tokens so the app scales cleanly.
+   ========================================================= */
+
+:root {
+  /* ---- palette ---- */
+  --bg-0: #0b0f1a;          /* app background */
+  --bg-1: #111726;          /* raised surface */
+  --bg-2: #172033;          /* card */
+  --bg-3: #1f2b44;          /* hover / elevated */
+  --line: #26324d;          /* borders */
+  --line-soft: #1c2740;
+
+  --text-1: #eef2ff;        /* primary text */
+  --text-2: #aab4d4;        /* secondary */
+  --text-3: #6b76a0;        /* muted */
+
+  --brand: #6366f1;         /* indigo */
+  --brand-2: #8b5cf6;       /* violet */
+  --brand-ink: #c7d2fe;
+  --brand-glow: rgba(99, 102, 241, 0.45);
+
+  --accent: #22d3ee;        /* cyan for "now" */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+
+  /* priority colors */
+  --p1: #64748b;            /* low */
+  --p2: #38bdf8;            /* normal */
+  --p3: #fbbf24;            /* high */
+  --p4: #fb7185;            /* urgent */
+
+  /* ---- shape ---- */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* ---- shadow ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-glow: 0 8px 30px var(--brand-glow);
+
+  /* ---- type ---- */
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ---- spacing ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nav-h: 68px;
+
+  color-scheme: dark;
+}
+
+/* ---- light theme (optional future toggle via data-theme) ---- */
+:root[data-theme='light'] {
+  --bg-0: #f5f7ff;
+  --bg-1: #ffffff;
+  --bg-2: #ffffff;
+  --bg-3: #eef1fb;
+  --line: #e2e7f5;
+  --line-soft: #eceffb;
+  --text-1: #0f1729;
+  --text-2: #495273;
+  --text-3: #8b93b4;
+  --brand-ink: #4338ca;
+  --shadow-md: 0 8px 24px rgba(31, 41, 84, 0.1);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(1000px 500px at -10% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+    var(--bg-0);
+  background-attachment: fixed;
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
+p { margin: 0; }
+button { font-family: inherit; }
+a { color: var(--brand-ink); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+
+/* ---------- utility layout ---------- */
+.app-shell {
+  min-height: 100dvh;
+  max-width: 520px;
+  margin: 0 auto;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
+  position: relative;
+}
+.page {
+  padding: calc(var(--safe-top) + 16px) 16px 8px;
+  animation: fade-in 0.35s ease both;
+}
+.row { display: flex; align-items: center; gap: 10px; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1; }
+.wrap { flex-wrap: wrap; }
+.center { display: flex; align-items: center; justify-content: center; }
+.muted { color: var(--text-2); }
+.dim { color: var(--text-3); }
+.tiny { font-size: 12px; }
+.small { font-size: 13px; }
+.stack > * + * { margin-top: 12px; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
