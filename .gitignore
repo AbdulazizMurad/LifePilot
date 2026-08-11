@@ -31,3 +31,6 @@ pnpm-debug.log*
 
 # pwa generated
 dev-dist
+
+# ts build info
+*.tsbuildinfo
