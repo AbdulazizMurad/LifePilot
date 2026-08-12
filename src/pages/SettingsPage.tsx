@@ -141,7 +141,7 @@ export function SettingsPage() {
         <Button variant="primary" block loading={saving} onClick={save}>
           {saved ? 'Saved ✓' : 'Save changes'}
         </Button>
-        <Button variant="ghost" block onClick={() => signOut()}>
+        <Button variant="danger" block onClick={() => signOut()}>
           <IconLogout width={18} height={18} /> Sign out
         </Button>
       </div>
