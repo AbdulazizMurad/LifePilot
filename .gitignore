@@ -34,3 +34,6 @@ dev-dist
 
 # ts build info
 *.tsbuildinfo
+
+# publishable Supabase config (safe: protected by RLS)
+!.env.production

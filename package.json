@@ -6,7 +6,7 @@
   "description": "LifePilot — an AI-powered organizer that decides what to do first, what can wait, and reshuffles your day when plans change.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/generate-icons.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "tsc -b --noEmit"
   },
