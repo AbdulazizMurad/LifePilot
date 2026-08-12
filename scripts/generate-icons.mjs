@@ -1,5 +1,5 @@
 // Generates PWA PNG icons with no external dependencies.
-// Renders a gradient rounded-square "shield + check" and encodes PNG via zlib.
+// Renders the gradient rounded-square "LP" monogram and encodes PNG via zlib.
 import { deflateSync } from 'node:zlib'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -60,35 +60,60 @@ function distSeg(px, py, ax, ay, bx, by) {
   return Math.hypot(px - cx, py - cy)
 }
 
+/**
+ * "LP" monogram as stroked segments in normalised (0..1) space.
+ * The P bowl is an arc approximated by short segments.
+ */
+function monogramSegments(sx, sy, s) {
+  const px = (u) => sx + s * u
+  const py = (v) => sy + s * v
+  const segs = [
+    // L: stem then foot
+    [px(0.27), py(0.28), px(0.27), py(0.72)],
+    [px(0.27), py(0.72), px(0.41), py(0.72)],
+    // P: stem, then top bar into the bowl
+    [px(0.55), py(0.72), px(0.55), py(0.28)],
+    [px(0.55), py(0.28), px(0.625), py(0.28)],
+    [px(0.625), py(0.50), px(0.55), py(0.50)],
+  ]
+  // P bowl: half circle from the top bar round to the waist
+  const bcx = px(0.625)
+  const bcy = py(0.39)
+  const br = s * 0.11
+  const steps = 24
+  for (let i = 0; i < steps; i++) {
+    const a0 = -Math.PI / 2 + (Math.PI * i) / steps
+    const a1 = -Math.PI / 2 + (Math.PI * (i + 1)) / steps
+    segs.push([bcx + br * Math.cos(a0), bcy + br * Math.sin(a0), bcx + br * Math.cos(a1), bcy + br * Math.sin(a1)])
+  }
+  return segs
+}
+
 function render(size, maskable) {
   const rgba = Buffer.alloc(size * size * 4)
-  const pad = maskable ? size * 0.14 : size * 0.06 // safe area for maskable
-  const s = size - pad * 2
-  const radius = maskable ? size * 0.5 : s * 0.24 // maskable ~circle-safe, else rounded square
+  // Maskable icons are full-bleed — the launcher applies its own mask — so the
+  // artwork keeps clear of the outer ~20% safe zone instead of being rounded here.
+  const bgPad = maskable ? 0 : size * 0.06
+  const bgSize = size - bgPad * 2
+  const radius = maskable ? 0 : bgSize * 0.24
+  const contentPad = maskable ? size * 0.22 : bgPad
+  const contentSize = size - contentPad * 2
   const cx = size / 2
   const cy = size / 2
 
-  // shield geometry (relative to inner square)
-  const sx = pad
-  const sy = pad
-  const topY = sy + s * 0.14
-  const midX = sx + s * 0.5
-  const shieldStroke = s * 0.05
-
-  // checkmark points
-  const c1 = [sx + s * 0.36, sy + s * 0.52]
-  const c2 = [sx + s * 0.47, sy + s * 0.63]
-  const c3 = [sx + s * 0.66, sy + s * 0.40]
-  const checkStroke = s * 0.055
+  const segs = monogramSegments(contentPad, contentPad, contentSize)
+  const stroke = contentSize * 0.055
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const i = (y * size + x) * 4
-      // rounded-square / circle mask (distance to rounded rect)
-      const qx = Math.max(Math.abs(x - cx) - (s / 2 - radius), 0)
-      const qy = Math.max(Math.abs(y - cy) - (s / 2 - radius), 0)
-      const dRect = Math.hypot(qx, qy) - radius
-      const bgAlpha = smooth(0, dRect)
+      let bgAlpha = 1
+      if (!maskable) {
+        // rounded-square mask (signed distance to a rounded rect)
+        const qx = Math.max(Math.abs(x - cx) - (bgSize / 2 - radius), 0)
+        const qy = Math.max(Math.abs(y - cy) - (bgSize / 2 - radius), 0)
+        bgAlpha = smooth(0, Math.hypot(qx, qy) - radius)
+      }
       if (bgAlpha <= 0) {
         rgba[i + 3] = 0
         continue
@@ -99,25 +124,13 @@ function render(size, maskable) {
       let g = lerp(0x66, 0x5c, t)
       let b = lerp(0xf1, 0xf6, t)
 
-      // shield outline (approx path with segments) — draw as white ring
-      const shieldD = Math.min(
-        distSeg(x, y, midX, topY, sx + s * 0.2, sy + s * 0.26),
-        distSeg(x, y, sx + s * 0.2, sy + s * 0.26, sx + s * 0.2, sy + s * 0.5),
-        distSeg(x, y, sx + s * 0.2, sy + s * 0.5, midX, sy + s * 0.82),
-        distSeg(x, y, midX, topY, sx + s * 0.8, sy + s * 0.26),
-        distSeg(x, y, sx + s * 0.8, sy + s * 0.26, sx + s * 0.8, sy + s * 0.5),
-        distSeg(x, y, sx + s * 0.8, sy + s * 0.5, midX, sy + s * 0.82),
-      )
-      const shieldA = smooth(shieldStroke, shieldD)
-
-      // checkmark
-      const checkD = Math.min(
-        distSeg(x, y, c1[0], c1[1], c2[0], c2[1]),
-        distSeg(x, y, c2[0], c2[1], c3[0], c3[1]),
-      )
-      const checkA = smooth(checkStroke, checkD)
-
-      const white = Math.max(shieldA, checkA)
+      // distance to the nearest monogram stroke
+      let d = Infinity
+      for (const [ax, ay, bx, by] of segs) {
+        const dd = distSeg(x, y, ax, ay, bx, by)
+        if (dd < d) d = dd
+      }
+      const white = smooth(stroke, d)
       r = lerp(r, 255, white)
       g = lerp(g, 255, white)
       b = lerp(b, 255, white)

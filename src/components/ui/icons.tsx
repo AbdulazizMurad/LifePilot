@@ -100,9 +100,10 @@ export const IconSend = (p: P) => (
     <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />
   </svg>
 )
+/** LP monogram — matches the installed app icon. */
 export const IconLogo = (p: P) => (
   <svg {...base(p)}>
-    <path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4Z" />
-    <path d="M9 12l2 2 4-4" />
+    <path d="M6.5 6.7 V17.3 H9.8" />
+    <path d="M13.2 17.3 V6.7 H15 a2.6 2.6 0 0 1 0 5.2 H13.2" />
   </svg>
 )
