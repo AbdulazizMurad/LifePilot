@@ -29,6 +29,7 @@ export const CATEGORY_EMOJI: Record<string, string> = {
   appointment: '📅',
 }
 
-export const DURATION_PRESETS = [15, 30, 45, 60, 90, 120, 180]
+/** Kept short on purpose — anything else goes through the custom input. */
+export const DURATION_PRESETS = [15, 30, 60, 120]
 
 export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

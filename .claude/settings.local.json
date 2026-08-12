@@ -9,7 +9,9 @@
       "Bash(node -e ' *)",
       "Bash(python -)",
       "Bash(node test-mixed.mjs)",
-      "mcp__592a1e59-41a8-4f46-a56e-c993c72e9da0__execute_sql"
+      "mcp__592a1e59-41a8-4f46-a56e-c993c72e9da0__execute_sql",
+      "Bash(git add *)",
+      "Bash(git -c 'user.name=Abdulaziz Murad' -c user.email=engabdulazizmurad@gmail.com commit -q -m ' *)"
     ]
   }
 }

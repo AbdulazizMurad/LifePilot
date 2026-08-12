@@ -33,6 +33,10 @@ export function TaskForm({ initial, defaultDeadline, onSave, onDelete, onCancel 
   const [category, setCategory] = useState(initial?.category ?? 'general')
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? 2)
   const [duration, setDuration] = useState<number>(initial?.duration_minutes ?? 30)
+  // Custom stays open when editing a task whose duration isn't one of the presets.
+  const [custom, setCustom] = useState(
+    initial ? !DURATION_PRESETS.includes(initial.duration_minutes) : false,
+  )
   const [deadline, setDeadline] = useState<string>(
     toLocalInput(initial?.deadline ?? (defaultDeadline ? defaultDeadline.toISOString() : null)),
   )
@@ -79,13 +83,35 @@ export function TaskForm({ initial, defaultDeadline, onSave, onDelete, onCancel 
               key={d}
               type="button"
               className="chip"
-              data-active={duration === d}
-              onClick={() => setDuration(d)}
+              data-active={!custom && duration === d}
+              onClick={() => {
+                setCustom(false)
+                setDuration(d)
+              }}
             >
               {durationLabel(d)}
             </button>
           ))}
+          <button type="button" className="chip" data-active={custom} onClick={() => setCustom(true)}>
+            Custom…
+          </button>
         </div>
+
+        {custom && (
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <TextInput
+              type="number"
+              min={5}
+              max={600}
+              step={5}
+              autoFocus
+              value={duration}
+              onChange={(e) => setDuration(Math.max(5, Math.min(600, Number(e.target.value) || 0)))}
+              style={{ maxWidth: 120 }}
+            />
+            <span className="small muted">minutes ({durationLabel(duration)})</span>
+          </div>
+        )}
       </Field>
 
       <div className="row" style={{ gap: 12 }}>
