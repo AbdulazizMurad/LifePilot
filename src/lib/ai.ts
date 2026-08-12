@@ -32,6 +32,8 @@ export interface OrganizeResponse {
   result?: OrganizerResult
   /** Tasks the assistant created from the conversation this turn. */
   created?: Task[]
+  /** Fixed commitments the assistant recorded this turn. */
+  createdEvents?: EventItem[]
   refused?: boolean
   error?: string
 }
@@ -63,9 +65,13 @@ function normalizeBlocks(
 ): { blocks: ScheduleBlock[]; rejected: string[] } {
   const out: ScheduleBlock[] = []
   const rejected: string[] = []
+  // Minutes already allocated per task, so a task is never booked for more
+  // time than it needs (the model sometimes repeats a task on several days).
+  const allocated = new Map<string, number>()
   for (const b of raw) {
     const task = tasks.find((t) => t.id === b.task_id)
     if (!task) continue
+    if ((allocated.get(task.id) ?? 0) >= task.duration_minutes) continue
     const toISO = (v: string, date?: string): string | null => {
       if (!v) return null
       // already ISO?
@@ -90,6 +96,8 @@ function normalizeBlocks(
       rejected.push(`${task.title} — ${conflict}`)
       continue
     }
+    const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000)
+    allocated.set(task.id, (allocated.get(task.id) ?? 0) + mins)
     out.push({ task_id: task.id, title: task.title, start, end, reason: b.reason ?? '' })
   }
   return { blocks: out, rejected }

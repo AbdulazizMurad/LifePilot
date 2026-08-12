@@ -60,11 +60,21 @@ export function AssistantPage() {
       setErr(res.error || 'Something went wrong reaching the organizer.')
       return
     }
-    // Tasks the AI saved from what the user just described.
-    if (res.created?.length) {
+    // What the AI saved from what the user just described.
+    if (res.created?.length || res.createdEvents?.length) {
       await refresh()
-      const names = res.created.map((t) => `• ${t.title} (${durationLabel(t.duration_minutes)})`).join('\n')
-      setLog((l) => [...l, { role: 'assistant', content: `📝 Saved ${res.created!.length} task${res.created!.length > 1 ? 's' : ''}:\n${names}` }])
+      const parts: string[] = []
+      if (res.createdEvents?.length) {
+        const evs = res.createdEvents
+          .map((e) => `• ${e.title} — ${format(new Date(e.start_at), 'EEE d MMM')}, ${fmtTime(e.start_at)}–${fmtTime(e.end_at)}`)
+          .join('\n')
+        parts.push(`📅 Added ${res.createdEvents.length} fixed commitment${res.createdEvents.length > 1 ? 's' : ''}:\n${evs}`)
+      }
+      if (res.created?.length) {
+        const names = res.created.map((t) => `• ${t.title} (${durationLabel(t.duration_minutes)})`).join('\n')
+        parts.push(`📝 Saved ${res.created.length} task${res.created.length > 1 ? 's' : ''} to schedule:\n${names}`)
+      }
+      setLog((l) => [...l, { role: 'assistant', content: parts.join('\n\n') }])
     }
     setLog((l) => [...l, { role: 'assistant', content: res.reply }])
     if (res.result?.blocks?.length || res.result?.rejected?.length) setProposal(res.result)

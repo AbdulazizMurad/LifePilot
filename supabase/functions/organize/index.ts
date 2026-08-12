@@ -39,11 +39,27 @@ STRICT RULE: If the user asks anything NOT about organizing their own tasks, sch
 "I'm your task organizer, so I can only help you plan and prioritize your tasks — what would you like to get organized?"
 Do not answer the off-topic question at all, and do NOT call any tool for it.
 
-HOW YOU WORK — you are proactive; the user should never have to fill in forms:
-1. When the user describes ANYTHING they need to do, immediately call create_tasks to save it. Infer sensible durations, priorities and categories yourself rather than interrogating them. Do not ask permission to save.
-2. Right after saving, propose when to do them by calling propose_schedule.
-3. Only if their message contains no tasks at all should you warmly ask what's on their plate.
-Keep it conversational and low-friction.
+HOW YOU WORK — you are proactive; the user should never have to fill in forms.
+
+FIRST, SPLIT WHAT THEY SAY INTO TWO KINDS. This is the most important judgement you make:
+(a) FIXED COMMITMENTS -> call create_events. Anything that happens at a time the user named, or at a time convention fixes: "football match Thursday 9pm", "Friday prayer at the masjid", "movie night Sunday", "dinner date Monday", lectures, shifts, appointments. You do NOT choose when these happen — you record them exactly as stated and they BLOCK that time.
+(b) FLEXIBLE TASKS -> call create_tasks. Work with no fixed time that you must find room for: "renew my car registration", "finish the report", "study 4 hours", "buy groceries".
+A single message usually contains both. Call both tools in the same turn when it does.
+
+RESOLVING DAYS AND TIMES for fixed commitments:
+- A named weekday means the NEXT occurrence of that weekday (today counts if the time has not passed). Use the UPCOMING DATES list given to you — never guess a date.
+- Honour any time the user stated exactly ("9pm" = 21:00).
+- When they name an activity but no clock time, use the time that activity actually happens, never an arbitrary free slot:
+  * Jumu'ah / Friday prayer at the masjid -> Friday around 12:00-13:00 (it is a midday prayer).
+  * Dhuhr ~12:30, Asr ~15:30, Maghrib ~18:00, Isha ~19:30 (approximate; keep them at their real time of day).
+  * dinner / dinner date -> evening, ~19:00-21:00. lunch -> ~13:00. breakfast -> ~08:00.
+  * movie night, game night -> evening, ~20:00-22:00.
+  * gym, workout -> honour the user's stated time, else a sensible morning or evening slot.
+- Give each a realistic duration (a football match ~2h, a prayer at the masjid ~45min, a dinner date ~2h, a movie night ~2h).
+- NEVER place a dinner in the morning or a prayer at an hour it does not occur. If you genuinely cannot tell when something happens, ask one short question instead of guessing.
+
+THEN, schedule only the FLEXIBLE tasks around everything fixed, by calling propose_schedule.
+Keep it conversational and low-friction; do not ask permission to save.
 
 SCHEDULING: Whenever you recommend specific times for the user's tasks — or the user agrees to a plan ("yes", "do it", "apply that", "schedule it") — you MUST call the propose_schedule tool with concrete blocks. Do NOT ask for confirmation first; propose your best plan by calling the tool (the app shows an "Apply" button so the user stays in control). Reference tasks by their EXACT id. Use the provided "Today" date unless the user names another day. Still give a short, warm text reply.
 
@@ -84,6 +100,35 @@ const TOOLS = [
           },
         },
         required: ['tasks'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_events',
+      description:
+        "Save FIXED commitments that already have a day and/or time the user stated or that convention fixes (a match at 9pm Thursday, Friday prayer at the masjid, a dinner date on Monday, a lecture, an appointment). These are NOT scheduled by you — they happen when the user said they happen, and they block that time.",
+      parameters: {
+        type: 'object',
+        properties: {
+          events: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'Short name of the commitment' },
+                date: { type: 'string', description: 'Local date, YYYY-MM-DD, resolved from the day the user named' },
+                start: { type: 'string', description: 'Local start time, 24h HH:MM' },
+                end: { type: 'string', description: 'Local end time, 24h HH:MM' },
+                location: { type: 'string', description: 'Where, if mentioned' },
+                notes: { type: 'string', description: 'Any extra detail' },
+              },
+              required: ['title', 'date', 'start', 'end'],
+            },
+          },
+        },
+        required: ['events'],
       },
     },
   },
@@ -158,6 +203,8 @@ function buildContext(profile: any, tasks: any[], events: any[], today: string, 
   const lines: string[] = []
   const todayDow = SHORT_DAYS[new Date(`${today}T00:00:00`).getDay()] ?? ''
   lines.push(`Today is ${today} (${todayDow}). Current local time: ${nowLabel}.`)
+  lines.push(`\nUPCOMING DATES (resolve any weekday the user names using this list, never guess):`)
+  lines.push(upcomingDates(today))
 
   if (profile) {
     lines.push(
@@ -354,6 +401,78 @@ async function createTasks(
 }
 
 
+/** Insert fixed commitments the assistant extracted, as the calling user. */
+async function createEvents(
+  authHeader: string | null,
+  userId: string | null,
+  // deno-lint-ignore no-explicit-any
+  drafts: any[],
+  tzOffsetMinutes: number,
+) {
+  const url = Deno.env.get('SUPABASE_URL')
+  const anon = Deno.env.get('SUPABASE_ANON_KEY')
+  if (!url || !anon || !authHeader || !userId || !drafts?.length) return []
+
+  const rows = drafts
+    .slice(0, 15)
+    .map((d) => {
+      const date = String(d.date ?? '').slice(0, 10)
+      const start = localToUtcIso(`${date}T${String(d.start ?? '').slice(0, 5)}`, tzOffsetMinutes)
+      let end = localToUtcIso(`${date}T${String(d.end ?? '').slice(0, 5)}`, tzOffsetMinutes)
+      if (!start) return null
+      // Guard against a missing/invalid end time.
+      if (!end || new Date(end) <= new Date(start)) {
+        end = new Date(new Date(start).getTime() + 60 * 60000).toISOString()
+      }
+      return {
+        user_id: userId,
+        title: String(d.title ?? '').slice(0, 200),
+        start_at: start,
+        end_at: end,
+        location: d.location ? String(d.location).slice(0, 200) : null,
+        notes: d.notes ? String(d.notes).slice(0, 1000) : null,
+        recurrence: 'none',
+      }
+    })
+    .filter((r) => r && r.title.length > 0)
+
+  if (!rows.length) return []
+  try {
+    const r = await fetch(`${url}/rest/v1/events`, {
+      method: 'POST',
+      headers: {
+        apikey: anon,
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(rows),
+    })
+    if (!r.ok) {
+      lastInsertError = `events ${r.status}: ${(await r.text()).slice(0, 200)}`
+      return []
+    }
+    const created = await r.json()
+    return Array.isArray(created) ? created : []
+  } catch (e) {
+    lastInsertError = (e as Error).message
+    return []
+  }
+}
+
+/** Explicit weekday -> date map so named days never resolve to the wrong date. */
+function upcomingDates(todayISO: string, days = 10): string {
+  const base = new Date(`${todayISO}T00:00:00`)
+  const out: string[] = []
+  for (let i = 0; i < days; i++) {
+    const d = new Date(base)
+    d.setDate(d.getDate() + i)
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    out.push(`${DAYS[d.getDay()]} = ${iso}${i === 0 ? ' (today)' : i === 1 ? ' (tomorrow)' : ''}`)
+  }
+  return out.join('\n')
+}
+
 // deno-lint-ignore no-explicit-any
 async function chat(apiKey: string, messages: any[], tools?: any[], toolChoice?: unknown) {
   // deno-lint-ignore no-explicit-any
@@ -397,7 +516,8 @@ Deno.serve(async (req: Request) => {
   const mode = body.mode === 'plan' ? 'plan' : 'chat'
   // Authoritative per-user profile from the DB; fall back to the client copy.
   const serverProfile = await loadProfile(req.headers.get('Authorization'))
-  const profile = serverProfile ?? body.profile
+  // deno-lint-ignore no-explicit-any
+  const profile: any = serverProfile ?? body.profile
   // deno-lint-ignore no-explicit-any
   const tasks = (body.tasks as any[]) ?? []
   // deno-lint-ignore no-explicit-any
@@ -477,6 +597,8 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     let created: any[] = []
     // deno-lint-ignore no-explicit-any
+    let createdEvents: any[] = []
+    // deno-lint-ignore no-explicit-any
     const calls = (msg.tool_calls as any[]) ?? []
     const parseArgs = (c: unknown) => {
       try {
@@ -505,7 +627,22 @@ Deno.serve(async (req: Request) => {
     // 2) A schedule proposed in the same turn. Ignore it when tasks were just
     //    created — the model was guessing ids that did not exist yet, so we
     //    re-ask below with the real ones.
-    const planCall = createCall ? undefined : calls.find((c) => c?.function?.name === 'propose_schedule')
+    // Fixed commitments: recorded exactly as stated, never re-timed by us.
+    const eventCall = calls.find((c) => c?.function?.name === 'create_events')
+    if (eventCall) {
+      const args = parseArgs(eventCall)
+      if (Array.isArray(args.events) && args.events.length) {
+        createdEvents = await createEvents(
+          req.headers.get('Authorization'),
+          profile?.id ?? null,
+          args.events,
+          tzOffset,
+        )
+      }
+    }
+
+    const planCall =
+      createCall || eventCall ? undefined : calls.find((c) => c?.function?.name === 'propose_schedule')
     if (planCall) {
       const args = parseArgs(planCall)
       if (Array.isArray(args.blocks) && args.blocks.length) {
@@ -515,20 +652,22 @@ Deno.serve(async (req: Request) => {
 
     // 3) If we just created tasks but have no plan yet, immediately ask for one
     //    so the user goes from "here's my week" to a real schedule in one step.
-    if (created.length && !result) {
-      const allTasks = [...(tasks ?? []), ...created]
+    const allTasks = [...(tasks ?? []), ...created]
+    const allEvents = [...(events ?? []), ...createdEvents]
+    const anythingToSchedule = allTasks.some((t) => t.status !== 'done' && !t.scheduled_start)
+    if ((created.length || createdEvents.length) && !result && anythingToSchedule) {
       const followUp = await chat(
         apiKey,
         [
           { role: 'system', content: SYSTEM },
           {
             role: 'system',
-            content: `Current user context:\n${buildContext(profile, allTasks, events, today, nowLabel, nowMinutes)}`,
+            content: `Current user context:\n${buildContext(profile, allTasks, allEvents, today, nowLabel, nowMinutes)}`,
           },
           {
             role: 'user',
             content:
-              'I just saved those tasks. Schedule them into my free time now, respecting every UNAVAILABLE window, and give me a short warm summary.',
+              'I saved those. My fixed commitments are already placed at their real times - do not move or reschedule them. Now schedule only my unscheduled flexible tasks around everything fixed. Every block MUST fit entirely inside one of my FREE WINDOWS - verify each start and end. Then give me a short warm summary.',
           },
         ],
         TOOLS,
@@ -548,13 +687,17 @@ Deno.serve(async (req: Request) => {
       if (followText) reply = reply ? `${reply}\n\n${followText}` : followText
     }
 
-    if (!reply) reply = result?.summary || (created.length ? 'Saved those for you.' : 'Okay!')
+    if ((createCall && !created.length) || (eventCall && !createdEvents.length)) {
+      reply = "I couldn't save all of that just now - please try again in a moment."
+    }
+    if (!reply) reply = result?.summary || (created.length || createdEvents.length ? 'Saved those for you.' : 'Okay!')
 
     return json({
       ok: true,
       reply,
       result,
       created,
+      createdEvents,
       debug: body.debug
         ? { toolCalls: calls.map((c) => c?.function?.name), insertError: lastInsertError }
         : undefined,

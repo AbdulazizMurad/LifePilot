@@ -5,7 +5,11 @@
       "Bash(echo \"=== EXIT: $? ===\")",
       "Bash(rm -f tsconfig.node.json)",
       "Bash(npm install *)",
-      "mcp__592a1e59-41a8-4f46-a56e-c993c72e9da0__deploy_edge_function"
+      "mcp__592a1e59-41a8-4f46-a56e-c993c72e9da0__deploy_edge_function",
+      "Bash(node -e ' *)",
+      "Bash(python -)",
+      "Bash(node test-mixed.mjs)",
+      "mcp__592a1e59-41a8-4f46-a56e-c993c72e9da0__execute_sql"
     ]
   }
 }
