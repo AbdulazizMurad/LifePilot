@@ -10,7 +10,7 @@
 // =========================================================
 import { supabase } from './supabase'
 import type { Profile, Task, EventItem, OrganizerResult, ScheduleBlock } from './types'
-import { planDay } from './scheduler'
+import { planDay, availabilityConflict } from './scheduler'
 import { isSameDay, parseISO } from './date'
 
 export interface OrganizeRequest {
@@ -53,8 +53,14 @@ function pad(n: number) {
  * the browser's own timezone (so times land exactly where the user expects).
  * Blocks referencing unknown task ids are dropped.
  */
-function normalizeBlocks(raw: RawBlock[], tasks: Task[]): ScheduleBlock[] {
+function normalizeBlocks(
+  raw: RawBlock[],
+  tasks: Task[],
+  profile: Profile | null,
+  events: EventItem[],
+): { blocks: ScheduleBlock[]; rejected: string[] } {
   const out: ScheduleBlock[] = []
+  const rejected: string[] = []
   for (const b of raw) {
     const task = tasks.find((t) => t.id === b.task_id)
     if (!task) continue
@@ -72,9 +78,19 @@ function normalizeBlocks(raw: RawBlock[], tasks: Task[]): ScheduleBlock[] {
     const start = toISO(b.start, b.date)
     const end = toISO(b.end, b.date)
     if (!start || !end) continue
+
+    // Hard gate: never let a block through that collides with this user's
+    // sleep, working hours, or fixed commitments — whatever the model said.
+    const conflict = availabilityConflict(new Date(start), new Date(end), profile, events, {
+      category: task.category,
+    })
+    if (conflict) {
+      rejected.push(`${task.title} — ${conflict}`)
+      continue
+    }
     out.push({ task_id: task.id, title: task.title, start, end, reason: b.reason ?? '' })
   }
-  return out
+  return { blocks: out, rejected }
 }
 
 export async function organize(req: OrganizeRequest): Promise<OrganizeResponse> {
@@ -87,10 +103,16 @@ export async function organize(req: OrganizeRequest): Promise<OrganizeResponse> 
     })
     if (error) return { ok: false, reply: '', error: humanError(error.message) }
     if (!data) return { ok: false, reply: '', error: 'Empty response from organizer.' }
-    // Normalize any AI-proposed plan into applyable ISO blocks.
+    // Normalize any AI-proposed plan into applyable ISO blocks, dropping any
+    // that would collide with the user's real availability.
     if (data.result?.blocks?.length) {
-      const normalized = normalizeBlocks(data.result.blocks as unknown as RawBlock[], req.tasks)
-      data.result = { ...data.result, blocks: normalized }
+      const { blocks, rejected } = normalizeBlocks(
+        data.result.blocks as unknown as RawBlock[],
+        req.tasks,
+        req.profile,
+        req.events,
+      )
+      data.result = { ...data.result, blocks, rejected }
     }
     return data
   } catch (e) {

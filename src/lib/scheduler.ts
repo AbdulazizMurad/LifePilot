@@ -5,7 +5,7 @@
 // Used directly in the UI and as the fallback when AI is off.
 // =========================================================
 import type { Profile, Task, EventItem, Priority } from './types'
-import { atTime, parseISO, isSameDay } from './date'
+import { atTime, parseISO, isSameDay, timeToMinutes } from './date'
 
 export interface Interval {
   start: Date
@@ -171,6 +171,60 @@ function buildReason(task: Task, deadline: Date | null, now: Date): string {
   if (task.priority >= 4) return 'Marked urgent.'
   if (task.priority === 3) return 'High priority.'
   return 'Fits your free time today.'
+}
+
+/**
+ * Hard check: does [start,end) collide with anything this user genuinely
+ * cannot move — sleep, their working hours, or a fixed commitment?
+ * Used to validate AI-proposed blocks so a bad suggestion can never be
+ * written onto the calendar, regardless of what the model returns.
+ */
+export function availabilityConflict(
+  start: Date,
+  end: Date,
+  profile: Profile | null,
+  events: EventItem[],
+  opts: { category?: string } = {},
+): string | null {
+  if (end <= start) return 'invalid time range'
+
+  // Fixed commitments.
+  for (const ev of events) {
+    const s = parseISO(ev.start_at)
+    const e = parseISO(ev.end_at)
+    if (start < e && end > s) return `overlaps "${ev.title}"`
+  }
+  if (!profile) return null
+
+  // Sleep: anything outside the awake window is out of bounds. The awake
+  // window may wrap midnight, so compare in minutes-of-day.
+  const wake = timeToMinutes(profile.sleep_end) ?? 0
+  const bed = timeToMinutes(profile.sleep_start) ?? 24 * 60
+  const startMin = start.getHours() * 60 + start.getMinutes()
+  const endMin = startMin + Math.round((end.getTime() - start.getTime()) / 60000)
+  const awakeEnd = bed > wake ? bed : bed + 24 * 60 // normalise wrap
+  if (startMin < wake || endMin > awakeEnd) return 'falls inside your sleep hours'
+
+  // Working hours on working days (a job you cannot skip).
+  const day = start.getDay()
+  if (profile.work_start && profile.work_end && profile.work_days.includes(day)) {
+    const ws = atTime(start, profile.work_start)
+    const we = atTime(start, profile.work_end)
+    if (start < we && end > ws) return 'overlaps your working hours'
+  }
+
+  // Class/study commitment blocks non-study work only.
+  if (
+    profile.study_start &&
+    profile.study_end &&
+    profile.study_days.includes(day) &&
+    opts.category !== 'study'
+  ) {
+    const ss = atTime(start, profile.study_start)
+    const se = atTime(start, profile.study_end)
+    if (start < se && end > ss) return 'overlaps your class/study hours'
+  }
+  return null
 }
 
 /** What should I do *right now*? First scheduled/urgent actionable task. */

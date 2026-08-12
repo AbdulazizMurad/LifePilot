@@ -91,4 +91,6 @@ export interface OrganizerResult {
   summary: string
   blocks: ScheduleBlock[]
   advice?: string
+  /** Blocks dropped because they collided with the user's real availability. */
+  rejected?: string[]
 }

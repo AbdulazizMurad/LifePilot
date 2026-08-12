@@ -61,7 +61,7 @@ export function AssistantPage() {
       return
     }
     setLog((l) => [...l, { role: 'assistant', content: res.reply }])
-    if (res.result?.blocks?.length) setProposal(res.result)
+    if (res.result?.blocks?.length || res.result?.rejected?.length) setProposal(res.result)
     scrollDown()
   }
 
@@ -78,7 +78,7 @@ export function AssistantPage() {
       return
     }
     setLog((l) => [...l, { role: 'assistant', content: res.reply }])
-    if (res.result?.blocks?.length) setProposal(res.result)
+    if (res.result?.blocks?.length || res.result?.rejected?.length) setProposal(res.result)
     scrollDown()
   }
 
@@ -153,13 +153,22 @@ export function AssistantPage() {
                 </div>
               ))}
             </div>
+            {!!proposal.rejected?.length && (
+              <p className="tiny" style={{ color: 'var(--warning)', marginBottom: 8 }}>
+                Skipped {proposal.rejected.length} suggestion
+                {proposal.rejected.length > 1 ? 's' : ''} that clashed with your schedule:{' '}
+                {proposal.rejected.join('; ')}.
+              </p>
+            )}
             <div className="row" style={{ gap: 8 }}>
               <Button size="sm" variant="ghost" className="grow" onClick={() => setProposal(null)}>
                 Dismiss
               </Button>
-              <Button size="sm" variant="primary" className="grow" onClick={applyProposal}>
-                Apply plan
-              </Button>
+              {proposal.blocks.length > 0 && (
+                <Button size="sm" variant="primary" className="grow" onClick={applyProposal}>
+                  Apply plan
+                </Button>
+              )}
             </div>
           </div>
         )}

@@ -3,10 +3,11 @@
 // Securely proxies OpenRouter. The API key lives ONLY here as a
 // Supabase secret (OPENROUTER_API_KEY) and is never sent to the browser.
 //
-// The assistant is constrained to be a task/schedule ORGANIZER only and
-// refuses unrelated questions. It uses FUNCTION CALLING (propose_schedule)
-// so that whenever it recommends concrete times, the app reliably receives
-// a structured plan it can apply straight to the calendar.
+// The assistant is a task/schedule ORGANIZER only and refuses unrelated
+// questions. Each user's own profile (role, working/study days+hours,
+// sleep, energy peak) is loaded SERVER-SIDE from their JWT and turned
+// into hard scheduling constraints, so the AI never proposes a time
+// that collides with that user's real life.
 // =========================================================
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
@@ -22,6 +23,8 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 const SYSTEM = `You are "LifePilot", a focused personal productivity and schedule ORGANIZER.
 
 YOUR SCOPE — you ONLY help the user:
@@ -33,7 +36,9 @@ STRICT RULE: If the user asks anything NOT about organizing their own tasks, sch
 "I'm your task organizer, so I can only help you plan and prioritize your tasks — what would you like to get organized?"
 Do not answer the off-topic question at all, and do NOT call any tool for it.
 
-SCHEDULING: Whenever you recommend specific times for the user's tasks — or the user agrees to a plan / says things like "yes", "do it", "apply that", "schedule it" — you MUST call the propose_schedule tool with the concrete blocks. Do NOT ask the user for confirmation first — propose your best plan directly by calling the tool; the app shows them an "Apply" button so they stay in control. Reference tasks by their EXACT id from the task list. Never schedule over the user's fixed commitments, working hours, or sleep. Use the provided "Today" date unless the user names another day. Still give a short, warm text reply too.
+SCHEDULING: Whenever you recommend specific times for the user's tasks — or the user agrees to a plan ("yes", "do it", "apply that", "schedule it") — you MUST call the propose_schedule tool with concrete blocks. Do NOT ask for confirmation first; propose your best plan by calling the tool (the app shows an "Apply" button so the user stays in control). Reference tasks by their EXACT id. Use the provided "Today" date unless the user names another day. Still give a short, warm text reply.
+
+AVAILABILITY IS A HARD CONSTRAINT: The "UNAVAILABLE" windows below are times the user genuinely cannot work. NEVER place a block that overlaps them, not even partially, and never suggest such a time in your text either. Only use the user's genuinely free time. If a task cannot fit without a collision, say so honestly and suggest the nearest free window or a shorter session instead of overlapping. Respect each window's specific days of the week.
 
 STYLE: Warm, concise, practical. Use the user's context (role, hours, sleep, energy peak). Never invent tasks they didn't mention. Times are in the user's local timezone.`
 
@@ -43,7 +48,7 @@ const TOOLS = [
     function: {
       name: 'propose_schedule',
       description:
-        "Propose concrete time blocks to place the user's existing tasks onto their calendar. Call whenever you recommend specific times or the user agrees to a plan.",
+        "Propose concrete time blocks to place the user's existing tasks onto their calendar. Call whenever you recommend specific times or the user agrees to a plan. Never overlap the user's UNAVAILABLE windows.",
       parameters: {
         type: 'object',
         properties: {
@@ -73,16 +78,65 @@ function fmtClock(t: string | null | undefined): string {
   return t ? t.slice(0, 5) : '—'
 }
 
+function dayList(days: number[] | null | undefined): string {
+  if (!days || !days.length) return 'no days'
+  if (days.length === 7) return 'every day'
+  return days
+    .slice()
+    .sort((a, b) => a - b)
+    .map((d) => DAYS[d] ?? '?')
+    .join(', ')
+}
+
+/**
+ * Load the caller's own profile straight from the database using their JWT.
+ * RLS guarantees this returns only their row, so the constraints we feed the
+ * model are always that specific user's real settings.
+ */
+async function loadProfile(authHeader: string | null): Promise<Record<string, unknown> | null> {
+  const url = Deno.env.get('SUPABASE_URL')
+  const anon = Deno.env.get('SUPABASE_ANON_KEY')
+  if (!url || !anon || !authHeader) return null
+  try {
+    const r = await fetch(`${url}/rest/v1/profiles?select=*&limit=1`, {
+      headers: { apikey: anon, Authorization: authHeader, Accept: 'application/json' },
+    })
+    if (!r.ok) return null
+    const rows = await r.json()
+    return Array.isArray(rows) && rows.length ? rows[0] : null
+  } catch {
+    return null
+  }
+}
+
 // deno-lint-ignore no-explicit-any
 function buildContext(profile: any, tasks: any[], events: any[], today: string, nowLabel: string): string {
   const lines: string[] = []
   lines.push(`Today is ${today}. Current local time: ${nowLabel}.`)
+
   if (profile) {
-    lines.push(`User role: ${profile.role}. Timezone: ${profile.timezone}. Most focused: ${profile.energy_peak}.`)
-    if (profile.work_start) lines.push(`Working hours: ${fmtClock(profile.work_start)}–${fmtClock(profile.work_end)}.`)
-    if (profile.study_start) lines.push(`Study hours: ${fmtClock(profile.study_start)}–${fmtClock(profile.study_end)}.`)
-    lines.push(`Sleeps ${fmtClock(profile.sleep_start)}–${fmtClock(profile.sleep_end)}.`)
+    lines.push(
+      `\nABOUT THIS USER: role=${profile.role}; timezone=${profile.timezone}; most focused in the ${profile.energy_peak}.`,
+    )
+
+    // Explicit, per-user hard constraints — including WHICH DAYS they apply.
+    lines.push(`\nUNAVAILABLE (never schedule inside these):`)
+    lines.push(`- Sleep: ${fmtClock(profile.sleep_start)}–${fmtClock(profile.sleep_end)}, every day.`)
+    if (profile.work_start && profile.work_end && (profile.work_days ?? []).length) {
+      lines.push(
+        `- Work: ${fmtClock(profile.work_start)}–${fmtClock(profile.work_end)} on ${dayList(profile.work_days)}.`,
+      )
+    }
+    if (profile.study_start && profile.study_end && (profile.study_days ?? []).length) {
+      lines.push(
+        `- Classes/study commitment: ${fmtClock(profile.study_start)}–${fmtClock(profile.study_end)} on ${dayList(profile.study_days)}. Study-type tasks MAY be placed here if nothing else fits; other tasks may not.`,
+      )
+    }
+    lines.push(
+      `Schedule only in the gaps outside those windows, and prefer the user's ${profile.energy_peak} peak for demanding tasks.`,
+    )
   }
+
   const PR: Record<number, string> = { 1: 'low', 2: 'normal', 3: 'high', 4: 'urgent' }
   const active = (tasks ?? []).filter((t) => t.status !== 'done')
   if (active.length) {
@@ -94,9 +148,10 @@ function buildContext(profile: any, tasks: any[], events: any[], today: string, 
   } else {
     lines.push('\nNo open tasks.')
   }
+
   const upcoming = (events ?? []).slice(0, 20)
   if (upcoming.length) {
-    lines.push(`\nFixed commitments (do not overlap these):`)
+    lines.push(`\nFixed commitments (also UNAVAILABLE — never overlap):`)
     for (const e of upcoming) {
       lines.push(`- "${e.title}" ${new Date(e.start_at).toLocaleString()}–${new Date(e.end_at).toLocaleTimeString()}`)
     }
@@ -105,7 +160,7 @@ function buildContext(profile: any, tasks: any[], events: any[], today: string, 
 }
 
 // deno-lint-ignore no-explicit-any
-async function chat(apiKey: string, messages: any[], tools?: unknown, toolChoice?: unknown): Promise<any> {
+async function chat(apiKey: string, messages: any[], tools?: any[], toolChoice?: unknown) {
   // deno-lint-ignore no-explicit-any
   const payload: any = { model: MODEL, messages, temperature: 0.3, max_tokens: 800 }
   if (tools) {
@@ -144,8 +199,9 @@ Deno.serve(async (req: Request) => {
   }
 
   const mode = body.mode === 'plan' ? 'plan' : 'chat'
-  // deno-lint-ignore no-explicit-any
-  const profile = body.profile as any
+  // Authoritative per-user profile from the DB; fall back to the client copy.
+  const serverProfile = await loadProfile(req.headers.get('Authorization'))
+  const profile = serverProfile ?? body.profile
   // deno-lint-ignore no-explicit-any
   const tasks = (body.tasks as any[]) ?? []
   // deno-lint-ignore no-explicit-any
@@ -178,7 +234,6 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, reply: (msg.content ?? '').trim() })
     }
 
-    // chat mode with function calling
     // deno-lint-ignore no-explicit-any
     const history = ((body.history as any[]) ?? []).slice(-6).map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -186,8 +241,6 @@ Deno.serve(async (req: Request) => {
     }))
     const message = String(body.message ?? '')
 
-    // Detect scheduling intent so we can FORCE a structured plan (reliable),
-    // instead of hoping the model volunteers the tool call.
     const hasTasks = (tasks ?? []).some((t) => t.status !== 'done')
     const scheduleIntent =
       /\b(schedul|organi[sz]e|plan|calendar|reschedul|book|slot|time.?block|fit|when should i|put .* (on|in) my|add .* to my)\b/i.test(
@@ -199,10 +252,8 @@ Deno.serve(async (req: Request) => {
     const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant')?.content ?? ''
     const assistantOfferedPlan = /schedul|plan|shall i|go ahead|time/i.test(lastAssistant)
     const force = hasTasks && (scheduleIntent || (affirmative && assistantOfferedPlan))
-
     const toolChoice = force ? { type: 'function', function: { name: 'propose_schedule' } } : 'auto'
-    // With an empty task list there is nothing real to schedule — make sure the
-    // assistant says so plainly instead of inventing a plan the app can't apply.
+
     const noTaskGuidance = hasTasks
       ? null
       : {
@@ -225,12 +276,10 @@ Deno.serve(async (req: Request) => {
     )
 
     let reply = (msg.content ?? '').trim()
-    let result: { summary: string; blocks: unknown[] } | undefined
-
-    const call = (msg.tool_calls ?? []).find(
-      // deno-lint-ignore no-explicit-any
-      (c: any) => c?.function?.name === 'propose_schedule',
-    )
+    // deno-lint-ignore no-explicit-any
+    let result: any
+    // deno-lint-ignore no-explicit-any
+    const call = ((msg.tool_calls as any[]) ?? []).find((c) => c?.function?.name === 'propose_schedule')
     if (call) {
       try {
         const args = JSON.parse(call.function.arguments || '{}')
@@ -239,7 +288,7 @@ Deno.serve(async (req: Request) => {
           if (!reply) reply = String(args.summary ?? 'Here is a plan you can apply to your calendar.')
         }
       } catch {
-        // ignore malformed tool args
+        /* ignore malformed tool args */
       }
     }
     if (!reply) reply = 'Okay!'
