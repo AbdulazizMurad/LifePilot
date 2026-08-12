@@ -30,6 +30,8 @@ export interface OrganizeResponse {
   ok: boolean
   reply: string
   result?: OrganizerResult
+  /** Tasks the assistant created from the conversation this turn. */
+  created?: Task[]
   refused?: boolean
   error?: string
 }
@@ -99,16 +101,24 @@ export async function organize(req: OrganizeRequest): Promise<OrganizeResponse> 
     const clientToday = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     const clientNow = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     const { data, error } = await supabase.functions.invoke<OrganizeResponse>('organize', {
-      body: { ...req, clientToday, clientNow },
+      body: {
+        ...req,
+        clientToday,
+        clientNow,
+        clientTzOffset: now.getTimezoneOffset(),
+        clientNowMinutes: now.getHours() * 60 + now.getMinutes(),
+      },
     })
     if (error) return { ok: false, reply: '', error: humanError(error.message) }
     if (!data) return { ok: false, reply: '', error: 'Empty response from organizer.' }
     // Normalize any AI-proposed plan into applyable ISO blocks, dropping any
-    // that would collide with the user's real availability.
+    // that would collide with the user's real availability. Tasks the AI just
+    // created are included in the lookup so their blocks resolve.
     if (data.result?.blocks?.length) {
+      const known = [...req.tasks, ...(data.created ?? [])]
       const { blocks, rejected } = normalizeBlocks(
         data.result.blocks as unknown as RawBlock[],
-        req.tasks,
+        known,
         req.profile,
         req.events,
       )

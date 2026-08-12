@@ -4,38 +4,38 @@ import { useAuth } from '@/context/AuthContext'
 import { useData } from '@/context/DataContext'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/ui/Button'
-import { Sheet } from '@/components/ui/Sheet'
-import { TaskForm } from '@/components/TaskForm'
 import { organize, planDayWithAI } from '@/lib/ai'
 import type { OrganizerResult } from '@/lib/types'
-import { IconSend, IconSparkle, IconPlus } from '@/components/ui/icons'
-import { fmtTime, format } from '@/lib/date'
+import { IconSend, IconSparkle } from '@/components/ui/icons'
+import { durationLabel, fmtTime, format } from '@/lib/date'
 
 interface Msg {
   role: 'user' | 'assistant'
   content: string
 }
 
-const SUGGESTIONS = [
+const SUGGESTIONS_EMPTY = [
+  'I have a report due Friday, about 3 hours',
+  'Gym twice this week, an hour each',
+  'Study for my exam and call the dentist',
+]
+
+const SUGGESTIONS_ACTIVE = [
   'Plan my day',
   'What should I focus on first?',
   'I only have 2 free hours tonight — what should I do?',
   'Reorganize around a new deadline',
 ]
 
+const OPENER =
+  "Hi! I'm your LifePilot organizer. Tell me everything on your plate — deadlines and rough durations help — and I'll save it, then build you a realistic schedule around your work, classes and sleep."
+
 export function AssistantPage() {
   const { profile } = useAuth()
-  const { tasks, events, updateTask, addTask } = useData()
+  const { tasks, events, updateTask, refresh } = useData()
   const navigate = useNavigate()
-  const [showAdd, setShowAdd] = useState(false)
   const openTasks = tasks.filter((t) => t.status !== 'done')
-  const [log, setLog] = useState<Msg[]>([
-    {
-      role: 'assistant',
-      content:
-        "Hi! I'm your LifePilot organizer. Tell me what's on your plate and I'll help you decide what to do first, what can wait, and build a realistic plan. I only help with organizing your tasks and schedule.",
-    },
-  ])
+  const [log, setLog] = useState<Msg[]>([{ role: 'assistant', content: OPENER }])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [proposal, setProposal] = useState<OrganizerResult | null>(null)
@@ -59,6 +59,12 @@ export function AssistantPage() {
     if (!res.ok) {
       setErr(res.error || 'Something went wrong reaching the organizer.')
       return
+    }
+    // Tasks the AI saved from what the user just described.
+    if (res.created?.length) {
+      await refresh()
+      const names = res.created.map((t) => `• ${t.title} (${durationLabel(t.duration_minutes)})`).join('\n')
+      setLog((l) => [...l, { role: 'assistant', content: `📝 Saved ${res.created!.length} task${res.created!.length > 1 ? 's' : ''}:\n${names}` }])
     }
     setLog((l) => [...l, { role: 'assistant', content: res.reply }])
     if (res.result?.blocks?.length || res.result?.rejected?.length) setProposal(res.result)
@@ -118,20 +124,10 @@ export function AssistantPage() {
           </div>
         ))}
 
-        {openTasks.length === 0 && (
-          <div className="ai-suggest">
-            <div className="row" style={{ gap: 6, marginBottom: 6 }}>
-              <IconSparkle width={16} height={16} color="var(--brand-ink)" />
-              <strong>Add a task to get started</strong>
-            </div>
-            <p className="tiny muted" style={{ marginBottom: 10 }}>
-              I schedule the tasks you’ve saved — right now your list is empty, so there’s nothing
-              for me to organize yet. Add one and I’ll fit it into your day.
-            </p>
-            <Button size="sm" variant="primary" block onClick={() => setShowAdd(true)}>
-              <IconPlus width={16} height={16} /> Add your first task
-            </Button>
-          </div>
+        {openTasks.length === 0 && log.length <= 1 && (
+          <p className="tiny dim" style={{ textAlign: 'center', padding: '4px 12px' }}>
+            Just type it the way you'd say it out loud — I'll work out the details.
+          </p>
         )}
 
         {proposal && (
@@ -183,7 +179,7 @@ export function AssistantPage() {
 
       {log.length <= 1 && (
         <div className="row wrap" style={{ gap: 8, margin: '8px 0' }}>
-          {SUGGESTIONS.map((s) => (
+          {(openTasks.length === 0 ? SUGGESTIONS_EMPTY : SUGGESTIONS_ACTIVE).map((s) => (
             <button key={s} className="chip" onClick={() => send(s)}>
               {s}
             </button>
@@ -207,15 +203,6 @@ export function AssistantPage() {
         </button>
       </div>
 
-      <Sheet open={showAdd} onClose={() => setShowAdd(false)} title="New task">
-        <TaskForm
-          onCancel={() => setShowAdd(false)}
-          onSave={async (input) => {
-            await addTask({ ...input, status: 'todo' })
-            setShowAdd(false)
-          }}
-        />
-      </Sheet>
     </div>
   )
 }
