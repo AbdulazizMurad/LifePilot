@@ -1,6 +1,6 @@
-import type { EventItem, Task } from '@/lib/types'
+import type { EventItem, Task, Profile } from '@/lib/types'
 import type { PlannedBlock } from '@/lib/scheduler'
-import { fmtTime, isSameDay } from '@/lib/date'
+import { fmtTime, isSameDay, atTime } from '@/lib/date'
 import { CATEGORY_EMOJI, PRIORITY_META } from '@/lib/ui'
 import { IconPin } from './ui/icons'
 
@@ -8,16 +8,49 @@ interface Props {
   day: Date
   events: EventItem[]
   blocks: PlannedBlock[]
+  profile?: Profile | null
   onOpenTask: (t: Task) => void
   onOpenEvent: (e: EventItem) => void
+}
+
+/**
+ * Work and study hours are derived from the profile rather than stored as
+ * events: change your hours once and every day updates, with nothing to
+ * accidentally delete and no duplicated rows in the database.
+ */
+function routineRows(day: Date, profile?: Profile | null) {
+  if (!profile) return []
+  const dow = day.getDay()
+  const out: { kind: 'routine'; start: Date; end: Date; label: string; icon: string }[] = []
+  if (profile.work_start && profile.work_end && profile.work_days?.includes(dow)) {
+    out.push({
+      kind: 'routine',
+      start: atTime(day, profile.work_start),
+      end: atTime(day, profile.work_end),
+      label: 'Working hours',
+      icon: '💼',
+    })
+  }
+  if (profile.study_start && profile.study_end && profile.study_days?.includes(dow)) {
+    out.push({
+      kind: 'routine',
+      start: atTime(day, profile.study_start),
+      end: atTime(day, profile.study_end),
+      label: 'Class / study time',
+      icon: '📚',
+    })
+  }
+  return out
 }
 
 type Row =
   | { kind: 'event'; start: Date; end: Date; ev: EventItem }
   | { kind: 'task'; start: Date; end: Date; block: PlannedBlock }
+  | { kind: 'routine'; start: Date; end: Date; label: string; icon: string }
 
-export function DayTimeline({ day, events, blocks, onOpenTask, onOpenEvent }: Props) {
+export function DayTimeline({ day, events, blocks, profile, onOpenTask, onOpenEvent }: Props) {
   const rows: Row[] = [
+    ...routineRows(day, profile),
     ...events.map((ev) => ({ kind: 'event' as const, start: new Date(ev.start_at), end: new Date(ev.end_at), ev })),
     ...blocks.map((block) => ({ kind: 'task' as const, start: block.start, end: block.end, block })),
   ].sort((a, b) => a.start.getTime() - b.start.getTime())
@@ -25,6 +58,7 @@ export function DayTimeline({ day, events, blocks, onOpenTask, onOpenEvent }: Pr
   const now = new Date()
   const showNow = isSameDay(day, now)
 
+  const hasEntries = rows.some((r) => r.kind !== 'routine')
   if (rows.length === 0) {
     return (
       <div className="empty">
@@ -54,7 +88,16 @@ export function DayTimeline({ day, events, blocks, onOpenTask, onOpenEvent }: Pr
             )}
             <div className="tl-row">
               <span className="tl-time">{fmtTime(r.start)}</span>
-              {r.kind === 'event' ? (
+              {r.kind === 'routine' ? (
+                <div className="routine-band">
+                  <span>
+                    {r.icon} {r.label}
+                  </span>
+                  <span className="tiny dim">
+                    {fmtTime(r.start)}–{fmtTime(r.end)}
+                  </span>
+                </div>
+              ) : r.kind === 'event' ? (
                 <div
                   className="card"
                   style={{ padding: 12, borderLeft: '4px solid var(--accent)', cursor: 'pointer' }}
@@ -98,6 +141,11 @@ export function DayTimeline({ day, events, blocks, onOpenTask, onOpenEvent }: Pr
           </div>
         )
       })}
+      {!hasEntries && (
+        <p className="tiny dim" style={{ padding: '10px 2px' }}>
+          Only your routine so far — add tasks or tap “Plan my day”.
+        </p>
+      )}
     </div>
   )
 }

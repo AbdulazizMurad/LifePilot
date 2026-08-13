@@ -122,6 +122,7 @@ export function DayPage() {
         day={day}
         events={dayEvents}
         blocks={scheduledBlocks}
+        profile={profile}
         onOpenTask={setEditTask}
         onOpenEvent={setEditEvent}
       />

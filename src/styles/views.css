@@ -309,3 +309,30 @@
 }
 .divider { height: 1px; background: var(--line-soft); margin: 14px 0; }
 .error-text { color: var(--danger); font-size: 13px; }
+
+/* ---------- Routine bands (derived from the profile, not stored) ---------- */
+.routine-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.02) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Working days get a faint tint in the month grid. */
+.cal-cell.workday:not(.selected):not(.today) {
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.14);
+}

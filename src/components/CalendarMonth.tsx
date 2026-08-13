@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Task, EventItem } from '@/lib/types'
+import type { Task, EventItem, Profile } from '@/lib/types'
 import {
   monthMatrix,
   isSameDay,
@@ -17,6 +17,7 @@ interface Props {
   selected: Date
   tasks: Task[]
   events: EventItem[]
+  profile?: Profile | null
   onSelect: (d: Date) => void
   onAnchorChange: (d: Date) => void
 }
@@ -27,7 +28,7 @@ interface DayInfo {
   count: number
 }
 
-export function CalendarMonth({ anchor, selected, tasks, events, onSelect, onAnchorChange }: Props) {
+export function CalendarMonth({ anchor, selected, tasks, events, profile, onSelect, onAnchorChange }: Props) {
   const cells = useMemo(() => monthMatrix(anchor), [anchor])
 
   const byDay = useMemo(() => {
@@ -79,9 +80,12 @@ export function CalendarMonth({ anchor, selected, tasks, events, onSelect, onAnc
         {cells.map((d) => {
           const info = byDay.get(format(d, 'yyyy-MM-dd'))
           const out = !isSameMonth(d, anchor)
+          const isWorkday =
+            !!profile?.work_start && (profile.work_days?.includes(d.getDay()) ?? false)
           const cls = [
             'cal-cell',
             out ? 'out' : '',
+            isWorkday ? 'workday' : '',
             isToday(d) ? 'today' : '',
             isSameDay(d, selected) ? 'selected' : '',
           ]

@@ -21,6 +21,9 @@ export interface Profile {
   study_end: string | null
   sleep_start: string
   sleep_end: string
+  /** Times of day the user is sharpest — they may pick more than one. */
+  energy_peaks: EnergyPeak[]
+  /** @deprecated superseded by energy_peaks; kept until old clients age out. */
   energy_peak: EnergyPeak
   onboarded: boolean
   created_at: string

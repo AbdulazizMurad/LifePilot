@@ -41,6 +41,7 @@ const json = (body: unknown, status = 200, cors: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 /** Surfaced in debug output so insert failures are never silent. */
 let lastInsertError: string | null = null
@@ -60,8 +61,9 @@ HOW YOU WORK — you are proactive; the user should never have to fill in forms.
 
 FIRST, SPLIT WHAT THEY SAY INTO TWO KINDS. This is the most important judgement you make:
 (a) FIXED COMMITMENTS -> call create_events. Anything that happens at a time the user named, or at a time convention fixes: "football match Thursday 9pm", "Friday prayer at the masjid", "movie night Sunday", "dinner date Monday", lectures, shifts, appointments. You do NOT choose when these happen — you record them exactly as stated and they BLOCK that time.
-(b) FLEXIBLE TASKS -> call create_tasks. Work with no fixed time that you must find room for: "renew my car registration", "finish the report", "study 4 hours", "buy groceries".
-A single message usually contains both. Call both tools in the same turn when it does.
+(b) FLEXIBLE TASKS -> call create_tasks. Work with no fixed time that you must find room for: "renew my car registration", "wash the car", "finish the report", "study 4 hours", "buy groceries".
+Put ALL items of one kind into a SINGLE call to that tool, and call a tool only when there is something of that kind to save.
+A single message may contain both kinds - then call both tools in the same turn.
 
 RESOLVING DAYS AND TIMES for fixed commitments:
 - A named weekday means the NEXT occurrence of that weekday (today counts if the time has not passed). Use the UPCOMING DATES list given to you — never guess a date.
@@ -78,11 +80,11 @@ RESOLVING DAYS AND TIMES for fixed commitments:
 THEN, schedule only the FLEXIBLE tasks around everything fixed, by calling propose_schedule.
 Keep it conversational and low-friction; do not ask permission to save.
 
-SCHEDULING: Whenever you recommend specific times for the user's tasks — or the user agrees to a plan ("yes", "do it", "apply that", "schedule it") — you MUST call the propose_schedule tool with concrete blocks. Do NOT ask for confirmation first; propose your best plan by calling the tool (the app shows an "Apply" button so the user stays in control). Reference tasks by their EXACT id. Use the provided "Today" date unless the user names another day. Still give a short, warm text reply.
+SCHEDULING: Whenever you recommend specific times for the user's tasks — or the user agrees to a plan ("yes", "do it", "apply that", "schedule it") — you MUST call the propose_schedule tool with concrete blocks. Do NOT ask for confirmation first. Reference tasks by their EXACT id. Never propose times for fixed commitments — those are already placed.
 
 AVAILABILITY IS A HARD CONSTRAINT: You are given the user's exact FREE WINDOWS. Every block you propose MUST fit entirely inside one of them — check the start AND the end against the window before proposing it. Never overlap sleep, working hours, class hours or a fixed commitment, not even by a minute, and never suggest such a time in your text either. If a task is longer than the free window you had in mind, either split it across several windows/days or place it in a window that genuinely fits; say so honestly rather than overflowing.
 
-STYLE: Warm, concise, practical. Use the user's context (role, hours, sleep, energy peak). Never invent tasks they didn't mention. Times are in the user's local timezone.`
+STYLE: Warm, concise, practical. Use the user's context (role, hours, sleep, peak focus times). Never invent tasks they didn't mention. Times are in the user's local timezone.`
 
 const TOOLS = [
   {
@@ -90,7 +92,7 @@ const TOOLS = [
     function: {
       name: 'create_tasks',
       description:
-        "Save tasks the user just described in conversation. Call this as soon as they mention things they need to do, so you can then schedule them. Infer sensible duration/priority/category; ask only if something important is genuinely unclear.",
+        "Save FLEXIBLE tasks the user described - work with no fixed time that LifePilot must find room for. Include every such task in ONE call. Infer sensible duration/priority/category.",
       parameters: {
         type: 'object',
         properties: {
@@ -180,6 +182,18 @@ const TOOLS = [
     },
   },
 ]
+
+// deno-lint-ignore no-explicit-any
+function peakList(profile: any): string {
+  const peaks = Array.isArray(profile?.energy_peaks) && profile.energy_peaks.length
+    ? profile.energy_peaks
+    : profile?.energy_peak
+      ? [profile.energy_peak]
+      : []
+  if (!peaks.length) return 'no particular time'
+  if (peaks.length === 1) return `the ${peaks[0]}`
+  return `the ${peaks.slice(0, -1).join(', ')} and ${peaks[peaks.length - 1]}`
+}
 
 function fmtClock(t: string | null | undefined): string {
   return t ? t.slice(0, 5) : '—'
@@ -280,8 +294,6 @@ function buildContext(profile: any, tasks: any[], events: any[], today: string, 
   }
   return lines.join('\n')
 }
-
-const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function hhmmToMin(t: string | null | undefined): number | null {
   if (!t) return null

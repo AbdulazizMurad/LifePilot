@@ -7,6 +7,12 @@ import type { Role, EnergyPeak } from '@/lib/types'
 import { WEEKDAYS } from '@/lib/ui'
 import { IconLogout } from '@/components/ui/icons'
 
+const ENERGY_OPTIONS: { value: EnergyPeak; label: string; ic: string }[] = [
+  { value: 'morning', label: 'Morning', ic: '🌅' },
+  { value: 'afternoon', label: 'Afternoon', ic: '☀️' },
+  { value: 'evening', label: 'Evening', ic: '🌙' },
+]
+
 function DayPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
   const toggle = (i: number) =>
     onChange(value.includes(i) ? value.filter((d) => d !== i) : [...value, i].sort())
@@ -36,7 +42,13 @@ export function SettingsPage() {
   const [studyEnd, setStudyEnd] = useState(profile?.study_end?.slice(0, 5) ?? '21:00')
   const [sleepStart, setSleepStart] = useState(profile?.sleep_start?.slice(0, 5) ?? '23:00')
   const [sleepEnd, setSleepEnd] = useState(profile?.sleep_end?.slice(0, 5) ?? '07:00')
-  const [energy, setEnergy] = useState<EnergyPeak>(profile?.energy_peak ?? 'morning')
+  const [energy, setEnergy] = useState<EnergyPeak[]>(
+    profile?.energy_peaks?.length ? profile.energy_peaks : ['morning'],
+  )
+  const toggleEnergy = (v: EnergyPeak) =>
+    setEnergy((cur) =>
+      cur.includes(v) ? (cur.length > 1 ? cur.filter((x) => x !== v) : cur) : [...cur, v],
+    )
 
   const needsWork = role === 'employee' || role === 'both'
   const needsStudy = role === 'student' || role === 'both'
@@ -55,7 +67,8 @@ export function SettingsPage() {
       study_end: needsStudy ? studyEnd : null,
       sleep_start: sleepStart,
       sleep_end: sleepEnd,
-      energy_peak: energy,
+      energy_peaks: energy,
+      energy_peak: energy[0],
     })
     setSaving(false)
     setSaved(true)
@@ -128,12 +141,20 @@ export function SettingsPage() {
             <TextInput type="time" value={sleepEnd} onChange={(e) => setSleepEnd(e.target.value)} />
           </Field>
         </div>
-        <Field label="Most focused">
-          <Select value={energy} onChange={(e) => setEnergy(e.target.value as EnergyPeak)}>
-            <option value="morning">🌅 Morning</option>
-            <option value="afternoon">☀️ Afternoon</option>
-            <option value="evening">🌙 Evening</option>
-          </Select>
+        <Field label="Most focused" hint="Pick every time of day that applies.">
+          <div className="row wrap" style={{ gap: 8 }}>
+            {ENERGY_OPTIONS.map((e) => (
+              <button
+                key={e.value}
+                type="button"
+                className="chip"
+                data-active={energy.includes(e.value)}
+                onClick={() => toggleEnergy(e.value)}
+              >
+                {e.ic} {e.label}
+              </button>
+            ))}
+          </div>
         </Field>
       </div>
 

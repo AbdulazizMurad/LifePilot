@@ -42,6 +42,7 @@ export function MonthPage() {
         selected={selected}
         tasks={tasks}
         events={events}
+        profile={profile}
         onSelect={setSelected}
         onAnchorChange={setAnchor}
       />
