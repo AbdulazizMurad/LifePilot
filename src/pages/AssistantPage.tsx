@@ -27,15 +27,20 @@ const SUGGESTIONS_ACTIVE = [
   'Reorganize around a new deadline',
 ]
 
-const OPENER =
-  "Hi! I'm your LifePilot organizer. Tell me everything on your plate — deadlines and rough durations help — and I'll save it, then build you a realistic schedule around your work, classes and sleep."
+/** Greet by first name when we know it, without a stray comma when we don't. */
+function opener(fullName?: string | null): string {
+  const first = fullName?.trim().split(/\s+/)[0]
+  return `Hi${first ? ` ${first}` : ''}! I'm your LifePilot organizer. Tell me everything on your plate — deadlines and rough durations help — and I'll save it, then build you a realistic schedule around your work, classes and sleep.`
+}
 
 export function AssistantPage() {
   const { profile } = useAuth()
   const { tasks, events, updateTask, refresh } = useData()
   const navigate = useNavigate()
   const openTasks = tasks.filter((t) => t.status !== 'done')
-  const [log, setLog] = useState<Msg[]>([{ role: 'assistant', content: OPENER }])
+  const [log, setLog] = useState<Msg[]>(() => [
+    { role: 'assistant', content: opener(profile?.full_name) },
+  ])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [proposal, setProposal] = useState<OrganizerResult | null>(null)
