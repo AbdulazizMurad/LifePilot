@@ -629,39 +629,57 @@ Deno.serve(async (req: Request) => {
     }
 
     // 1) Save any tasks the assistant extracted from the conversation.
-    const createCall = calls.find((c) => c?.function?.name === 'create_tasks')
-    if (createCall) {
-      const args = parseArgs(createCall)
-      if (Array.isArray(args.tasks) && args.tasks.length) {
-        created = await createTasks(
-          req.headers.get('Authorization'),
-          // deno-lint-ignore no-explicit-any
-          (profile as any)?.id ?? null,
-          args.tasks,
-          tzOffset,
-        )
-      }
+    // Track how many items each tool actually asked for: the model sometimes
+    // calls a tool with an empty list, which must not read as a save failure.
+    let requestedTasks = 0
+    let requestedEvents = 0
+
+    // The model sometimes splits items across several calls to the same tool,
+    // so gather them all rather than taking only the first.
+    // deno-lint-ignore no-explicit-any
+    const taskDrafts: any[] = calls
+      .filter((c) => c?.function?.name === 'create_tasks')
+      .flatMap((c) => {
+        const args = parseArgs(c)
+        return Array.isArray(args.tasks) ? args.tasks : []
+      })
+    requestedTasks = taskDrafts.length
+    if (requestedTasks) {
+      created = await createTasks(
+        req.headers.get('Authorization'),
+        profile?.id ?? null,
+        taskDrafts,
+        tzOffset,
+      )
     }
 
     // 2) A schedule proposed in the same turn. Ignore it when tasks were just
     //    created — the model was guessing ids that did not exist yet, so we
     //    re-ask below with the real ones.
     // Fixed commitments: recorded exactly as stated, never re-timed by us.
-    const eventCall = calls.find((c) => c?.function?.name === 'create_events')
-    if (eventCall) {
-      const args = parseArgs(eventCall)
-      if (Array.isArray(args.events) && args.events.length) {
-        createdEvents = await createEvents(
-          req.headers.get('Authorization'),
-          profile?.id ?? null,
-          args.events,
-          tzOffset,
-        )
-      }
+    // deno-lint-ignore no-explicit-any
+    const eventDrafts: any[] = calls
+      .filter((c) => c?.function?.name === 'create_events')
+      .flatMap((c) => {
+        const args = parseArgs(c)
+        return Array.isArray(args.events) ? args.events : []
+      })
+    requestedEvents = eventDrafts.length
+    if (requestedEvents) {
+      createdEvents = await createEvents(
+        req.headers.get('Authorization'),
+        profile?.id ?? null,
+        eventDrafts,
+        tzOffset,
+      )
     }
 
+    // Only discard a same-turn schedule if we really created something (its ids
+    // would have been guesses); an empty tool call must not throw the plan away.
     const planCall =
-      createCall || eventCall ? undefined : calls.find((c) => c?.function?.name === 'propose_schedule')
+      requestedTasks || requestedEvents
+        ? undefined
+        : calls.find((c) => c?.function?.name === 'propose_schedule')
     if (planCall) {
       const args = parseArgs(planCall)
       if (Array.isArray(args.blocks) && args.blocks.length) {
@@ -706,7 +724,7 @@ Deno.serve(async (req: Request) => {
       if (followText) reply = reply ? `${reply}\n\n${followText}` : followText
     }
 
-    if ((createCall && !created.length) || (eventCall && !createdEvents.length)) {
+    if ((requestedTasks && !created.length) || (requestedEvents && !createdEvents.length)) {
       reply = "I couldn't save all of that just now - please try again in a moment."
     }
     if (!reply) reply = result?.summary || (created.length || createdEvents.length ? 'Saved those for you.' : 'Okay!')

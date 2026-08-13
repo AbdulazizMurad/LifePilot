@@ -13,7 +13,8 @@
       "Bash(git add *)",
       "Bash(git -c 'user.name=Abdulaziz Murad' -c user.email=engabdulazizmurad@gmail.com commit -q -m ' *)",
       "Bash(node scripts/generate-icons.mjs)",
-      "mcp__claude-in-chrome__tabs_context_mcp"
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "Bash(node test-mixed.mjs \"I need to wash the car and pay my electricity bill\")"
     ]
   }
 }
