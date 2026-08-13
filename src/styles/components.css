@@ -243,6 +243,9 @@
   align-items: flex-end;
   justify-content: center;
   animation: fade-in 0.2s ease both;
+  /* Never hand a scroll gesture back to the page underneath. */
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 .sheet {
   width: 100%;
@@ -254,8 +257,12 @@
   border-top-right-radius: var(--r-xl);
   border: 1px solid var(--line);
   border-bottom: none;
-  padding: 10px 16px calc(20px + var(--safe-bottom));
+  padding: 10px calc(16px + var(--safe-right)) calc(20px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
   animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* The sheet scrolls internally; that scroll must not chain to the page. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 @keyframes sheet-up {
   from { transform: translateY(100%); }
