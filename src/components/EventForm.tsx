@@ -63,7 +63,7 @@ export function EventForm({ initial, defaultDay, onSave, onDelete, onCancel }: P
           onChange={(e) => setTitle(e.target.value)}
         />
       </Field>
-      <div className="row" style={{ gap: 12 }}>
+      <div className="field-row">
         <Field label="Starts">
           <TextInput type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
@@ -71,7 +71,7 @@ export function EventForm({ initial, defaultDay, onSave, onDelete, onCancel }: P
           <TextInput type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
       </div>
-      <div className="row" style={{ gap: 12 }}>
+      <div className="field-row">
         <Field label="Location (optional)">
           <TextInput placeholder="Where?" value={location} onChange={(e) => setLocation(e.target.value)} />
         </Field>

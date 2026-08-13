@@ -114,7 +114,7 @@ export function TaskForm({ initial, defaultDeadline, onSave, onDelete, onCancel 
         )}
       </Field>
 
-      <div className="row" style={{ gap: 12 }}>
+      <div className="field-row">
         <Field label="Category">
           <Select value={category} onChange={(e) => setCategory(e.target.value)}>
             {CATEGORIES.map((c) => (

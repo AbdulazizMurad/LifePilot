@@ -51,10 +51,35 @@
 
 /* ---------- Inputs ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; }
-/* Fields sitting side by side (start/end times) must share the row evenly and
-   keep breathing room — narrow phones otherwise squash them together. */
-.row > .field { flex: 1 1 0; min-width: 0; }
-.row > .field + .field { margin-left: 4px; }
+/* Paired fields (start/end times, category/deadline). Side by side when there
+   is genuinely room, stacked otherwise — a time input has a wide intrinsic
+   size, so forcing two onto a narrow phone squashes them together. */
+.field-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.field-row > .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+@media (max-width: 460px) {
+  .field-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .field-row > .field {
+    width: 100%;
+    flex: none;
+  }
+}
+/* Time and date inputs ignore flex sizing unless told not to. */
+.input[type='time'],
+.input[type='date'],
+.input[type='datetime-local'] {
+  min-width: 0;
+  width: 100%;
+}
 .field > label { font-size: 13px; color: var(--text-2); font-weight: 600; }
 .input, .select, .textarea {
   width: 100%;

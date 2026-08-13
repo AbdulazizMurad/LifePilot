@@ -136,7 +136,7 @@ export function OnboardingPage() {
             <Field label="Working days">
               <DayPicker value={workDays} onChange={setWorkDays} />
             </Field>
-            <div className="row" style={{ gap: 12 }}>
+            <div className="field-row">
               <Field label="Start">
                 <TextInput type="time" value={workStart} onChange={(e) => setWorkStart(e.target.value)} />
               </Field>
@@ -158,7 +158,7 @@ export function OnboardingPage() {
             <Field label="Study days">
               <DayPicker value={studyDays} onChange={setStudyDays} />
             </Field>
-            <div className="row" style={{ gap: 12 }}>
+            <div className="field-row">
               <Field label="Start">
                 <TextInput type="time" value={studyStart} onChange={(e) => setStudyStart(e.target.value)} />
               </Field>
@@ -177,7 +177,7 @@ export function OnboardingPage() {
             So we schedule while you’re awake and at your best.
           </p>
           <div className="stack">
-            <div className="row" style={{ gap: 12 }}>
+            <div className="field-row">
               <Field label="Sleep at">
                 <TextInput type="time" value={sleepStart} onChange={(e) => setSleepStart(e.target.value)} />
               </Field>
