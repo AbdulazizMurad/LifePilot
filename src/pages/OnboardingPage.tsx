@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Field, TextInput } from '@/components/ui/Field'
@@ -35,6 +36,7 @@ function DayPicker({ value, onChange }: { value: number[]; onChange: (v: number[
 
 export function OnboardingPage() {
   const { profile, updateProfile } = useAuth()
+  const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
 
@@ -95,7 +97,9 @@ export function OnboardingPage() {
       onboarded: true,
     })
     setSaving(false)
-    // AuthProvider reloads the profile; App will route to the app automatically.
+    // The URL never changed while signing up, so it may still point at whatever
+    // page was open before (Settings, say). Send them to the landing route.
+    navigate('/', { replace: true })
   }
 
   return (

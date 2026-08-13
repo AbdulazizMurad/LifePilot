@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { Field, TextInput } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -6,6 +7,7 @@ import { IconLogo } from '@/components/ui/icons'
 
 export function AuthPage() {
   const { signIn, signUp } = useAuth()
+  const navigate = useNavigate()
   const [mode, setMode] = useState<'in' | 'up'>('in')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -28,6 +30,8 @@ export function AuthPage() {
         : await signUp(email.trim(), password, fullName.trim())
     setLoading(false)
     if (res.error) return setErr(res.error)
+    // Don't inherit whichever page was open before signing in.
+    navigate('/', { replace: true })
     if (mode === 'up') {
       setMsg('Account created! If email confirmation is on, check your inbox — otherwise you are in.')
     }
