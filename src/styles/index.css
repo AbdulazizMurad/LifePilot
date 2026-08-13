@@ -51,6 +51,9 @@
   /* ---- spacing ---- */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --gutter: 16px;
   --nav-h: 68px;
 
   color-scheme: dark;
@@ -107,7 +110,9 @@ a { color: var(--brand-ink); }
   position: relative;
 }
 .page {
-  padding: calc(var(--safe-top) + 16px) 16px 8px;
+  /* Horizontal padding respects the notch/rounded corners in landscape. */
+  padding: calc(var(--safe-top) + 16px) calc(var(--gutter) + var(--safe-right)) 8px
+    calc(var(--gutter) + var(--safe-left));
   animation: fade-in 0.35s ease both;
 }
 .row { display: flex; align-items: center; gap: 10px; }

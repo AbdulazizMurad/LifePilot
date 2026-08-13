@@ -72,6 +72,11 @@
     width: 100%;
     flex: none;
   }
+  /* A clock value is short — stretching it edge to edge looks unintentional
+     and leaves no breathing room, so cap it and let the row end naturally. */
+  .field-row > .field .input[type='time'] {
+    max-width: 200px;
+  }
 }
 /* Time and date inputs ignore flex sizing unless told not to. */
 .input[type='time'],
