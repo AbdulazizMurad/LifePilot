@@ -55,23 +55,22 @@ export function NowPage() {
   // anything unscheduled, and measuring only finished work made the total
   // shrink as you went, so one of two tasks read as 100%.
   const { done, total, pct } = useMemo(() => {
+    // Tasks completed through an old app build carry no completed_at; their
+    // updated_at is when they were marked done, so fall back to it rather
+    // than letting those completions vanish from the ring.
     const finishedToday = tasks.filter(
-      (t) => t.status === 'done' && t.completed_at && isSameDay(parseISO(t.completed_at), now),
+      (t) =>
+        t.status === 'done' && isSameDay(parseISO(t.completed_at ?? t.updated_at), now),
     )
-    const plannedToday = active.filter((t) => {
-      const ref = t.scheduled_start ?? t.deadline
-      return ref && isSameDay(parseISO(ref), now)
-    })
-    // With nothing scheduled for today, today's pool (undated + overdue) is
-    // today's work - future-dated tasks stay out of the ring too.
-    const outstanding = plannedToday.length ? plannedToday : todayPool
-    const totalCount = finishedToday.length + outstanding.length
+    // Denominator = today's finished work + today's remaining pool, the same
+    // pool the focus card and Up next draw from, so the numbers always agree.
+    const totalCount = finishedToday.length + todayPool.length
     return {
       done: finishedToday.length,
       total: totalCount,
       pct: totalCount ? Math.round((finishedToday.length / totalCount) * 100) : 0,
     }
-  }, [tasks, active, todayPool])
+  }, [tasks, todayPool])
 
   const nextEvent = useMemo(
     () =>
