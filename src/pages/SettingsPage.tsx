@@ -148,6 +148,8 @@ export function SettingsPage() {
 
       <p className="tiny dim" style={{ textAlign: 'center', marginTop: 18 }}>
         LifePilot · Install to your home screen from your browser menu for the full app experience.
+        <br />
+        Build {__BUILD_ID__}
       </p>
     </div>
   )

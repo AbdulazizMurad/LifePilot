@@ -5,6 +5,13 @@ import path from 'node:path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Stamped into the bundle so the running app can say which build it is —
+  // the quickest way to tell a stale service worker from a stale deploy.
+  define: {
+    __BUILD_ID__: JSON.stringify(
+      new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC',
+    ),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -40,6 +47,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallbackDenylist: [/^\/functions\//],
+        // Without these the new worker sits in "waiting" until every tab is
+        // closed, so a deployed fix silently doesn't reach the user.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             // Cache Supabase GET reads for offline-friendly viewing
