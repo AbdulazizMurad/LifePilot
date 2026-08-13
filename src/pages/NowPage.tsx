@@ -19,11 +19,35 @@ export function NowPage() {
 
   const now = new Date()
   const active = useMemo(() => tasks.filter((t) => t.status !== 'done'), [tasks])
-  const current = useMemo(() => pickNow(active, now), [active])
 
+  // "Right now" is about TODAY. A task belongs to today when it is scheduled
+  // for today, due today, overdue, or has no date at all (nothing ties it to
+  // another day). Future-dated tasks never take the focus card - they wait in
+  // "Up next" so a deadline next week can't hijack the present.
+  const isForToday = (t: Task) => {
+    const ref = t.scheduled_start ?? t.deadline
+    if (!ref) return true
+    const d = parseISO(ref)
+    return isSameDay(d, now) || d < now
+  }
+  const todayPool = useMemo(() => active.filter(isForToday), [active])
+  const future = useMemo(
+    () =>
+      active
+        .filter((t) => !isForToday(t))
+        .sort((a, b) =>
+          (a.scheduled_start ?? a.deadline ?? '').localeCompare(b.scheduled_start ?? b.deadline ?? ''),
+        ),
+    [active],
+  )
+
+  const current = useMemo(() => pickNow(todayPool, now), [todayPool])
+
+  // Today's remaining tasks first (most urgent), then upcoming days in order.
   const upNext = useMemo(
-    () => sortByUrgency(active, now).filter((t) => t.id !== current?.id).slice(0, 4),
-    [active, current],
+    () =>
+      [...sortByUrgency(todayPool, now).filter((t) => t.id !== current?.id), ...future].slice(0, 4),
+    [todayPool, future, current],
   )
 
   // Today's progress = what you finished today, over that plus what is still
@@ -38,15 +62,16 @@ export function NowPage() {
       const ref = t.scheduled_start ?? t.deadline
       return ref && isSameDay(parseISO(ref), now)
     })
-    // With nothing scheduled for today, the whole open backlog is "today's work".
-    const outstanding = plannedToday.length ? plannedToday : active
+    // With nothing scheduled for today, today's pool (undated + overdue) is
+    // today's work - future-dated tasks stay out of the ring too.
+    const outstanding = plannedToday.length ? plannedToday : todayPool
     const totalCount = finishedToday.length + outstanding.length
     return {
       done: finishedToday.length,
       total: totalCount,
       pct: totalCount ? Math.round((finishedToday.length / totalCount) * 100) : 0,
     }
-  }, [tasks, active])
+  }, [tasks, active, todayPool])
 
   const nextEvent = useMemo(
     () =>
@@ -109,6 +134,11 @@ export function NowPage() {
               <Button variant="soft" style={{ marginTop: 12 }} onClick={() => navigate('/assistant')}>
                 <IconSparkle width={18} height={18} /> Talk to your Pilot
               </Button>
+            </>
+          ) : future.length > 0 ? (
+            <>
+              <h2 style={{ margin: '8px 0 0' }}>Nothing due today 🎉</h2>
+              <p className="muted">Your next tasks are scheduled for the coming days.</p>
             </>
           ) : (
             <>
