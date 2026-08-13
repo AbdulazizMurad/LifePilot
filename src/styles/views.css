@@ -89,7 +89,10 @@
 }
 
 /* ---------- Day timeline ---------- */
-.timeline { position: relative; padding-left: 54px; }
+.timeline { position: relative; padding-left: 54px; padding-top: 8px; }
+/* Rows need enough vertical rhythm that the absolutely-positioned time labels
+   never collide — especially the "now" marker sitting next to a task. */
+.tl-row + .tl-row, .timeline > div + div { margin-top: 10px; }
 .timeline::before {
   content: '';
   position: absolute;
@@ -108,8 +111,10 @@
   font-weight: 600;
   padding-top: 2px;
 }
+/* The now marker gets its own band so its blue label clears the next task's. */
+.tl-now-row { height: 18px; margin-bottom: 12px; }
 .tl-now {
-  position: absolute; left: -8px; right: 0;
+  position: absolute; left: -8px; right: 0; top: 6px;
   height: 2px; background: var(--accent);
   z-index: 5;
   box-shadow: 0 0 10px var(--accent);
@@ -233,6 +238,30 @@
   border-bottom-left-radius: 4px;
 }
 .ai-log { display: flex; flex-direction: column; gap: 10px; }
+
+/* Chat fills exactly one screen: the transcript scrolls internally so the
+   composer is always visible without scrolling the page. */
+.page--chat {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--nav-h) - var(--safe-bottom) - 12px);
+  min-height: 0;
+  padding-bottom: 0;
+}
+.page--chat .ai-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.page--chat .ai-composer {
+  flex: none;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: transparent;
+}
+@media (min-width: 1024px) {
+  .page--chat { height: calc(100dvh - 40px); }
+}
 .ai-suggest {
   border: 1px dashed var(--brand);
   background: rgba(99,102,241,0.08);

@@ -14,13 +14,30 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'openai/gpt-4o-mini'
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+/**
+ * Only reflect origins we actually ship from. The function already requires a
+ * valid JWT, but echoing an arbitrary origin invites needless cross-site use.
+ */
+function corsFor(origin: string | null): Record<string, string> {
+  const base: Record<string, string> = {
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
+  if (!origin) return base
+  let allowed = false
+  try {
+    const u = new URL(origin)
+    allowed =
+      (u.protocol === 'https:' && u.hostname.endsWith('.vercel.app')) ||
+      (u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1'))
+  } catch {
+    allowed = false
+  }
+  return allowed ? { ...base, 'Access-Control-Allow-Origin': origin } : base
 }
 
-const json = (body: unknown, status = 200) =>
+const json = (body: unknown, status = 200, cors: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -87,7 +104,8 @@ const TOOLS = [
                 priority: { type: 'number', description: '1=low 2=normal 3=high 4=urgent' },
                 category: {
                   type: 'string',
-                  description: 'one of: general, work, study, personal, health, errand, appointment',
+                  description:
+                    "Pick the closest of: general, work, study, personal, health, chore (cleaning/maintenance like washing the car or laundry), errand (going out to buy/collect/drop off), finance (bills, renewals, payments), social (seeing people), appointment. Do not label a cleaning or maintenance job as an errand.",
                 },
                 deadline: {
                   type: 'string',
@@ -331,7 +349,7 @@ function freeWindows(
   return out.join('\n')
 }
 
-const CATEGORIES = ['general', 'work', 'study', 'personal', 'health', 'errand', 'appointment']
+const CATEGORIES = ['general', 'work', 'study', 'personal', 'health', 'chore', 'errand', 'finance', 'social', 'appointment']
 
 /** Local 'YYYY-MM-DDTHH:MM' -> UTC ISO, using the caller's timezone offset. */
 function localToUtcIso(local: string, tzOffsetMinutes: number): string | null {
@@ -500,17 +518,18 @@ async function chat(apiKey: string, messages: any[], tools?: any[], toolChoice?:
 }
 
 Deno.serve(async (req: Request) => {
+  const cors = corsFor(req.headers.get('Origin'))
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   lastInsertError = null
 
   const apiKey = Deno.env.get('OPENROUTER_API_KEY')
-  if (!apiKey) return json({ ok: false, reply: '', error: 'OPENROUTER_API_KEY not configured on the server.' })
+  if (!apiKey) return json({ ok: false, reply: '', error: 'OPENROUTER_API_KEY not configured on the server.' }, 200, cors)
 
   let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
-    return json({ ok: false, reply: '', error: 'Invalid request body.' }, 400)
+    return json({ ok: false, reply: '', error: 'Invalid request body.' }, 400, cors)
   }
 
   const mode = body.mode === 'plan' ? 'plan' : 'chat'
@@ -550,7 +569,7 @@ Deno.serve(async (req: Request) => {
           content: `Here is my context:\n${context}\n\nA schedule has already been laid out for my day:\n${planText}\n\nIn 2-3 warm sentences, summarize this plan and give me ONE practical tip. Do not list the schedule back verbatim, and do not call any tool.`,
         },
       ])
-      return json({ ok: true, reply: (msg.content ?? '').trim() })
+      return json({ ok: true, reply: (msg.content ?? '').trim() }, 200, cors)
     }
 
     // deno-lint-ignore no-explicit-any
@@ -701,8 +720,8 @@ Deno.serve(async (req: Request) => {
       debug: body.debug
         ? { toolCalls: calls.map((c) => c?.function?.name), insertError: lastInsertError }
         : undefined,
-    })
+    }, 200, cors)
   } catch (e) {
-    return json({ ok: false, reply: '', error: (e as Error).message })
+    return json({ ok: false, reply: '', error: (e as Error).message }, 200, cors)
   }
 })

@@ -19,7 +19,8 @@ export function AuthPage() {
     setMsg('')
     if (!email.trim() || !password) return setErr('Enter your email and password.')
     if (mode === 'up' && !fullName.trim()) return setErr('What should we call you?')
-    if (password.length < 6) return setErr('Password must be at least 6 characters.')
+    if (mode === 'up' && password.length < 8)
+      return setErr('Use at least 8 characters — longer passwords are much harder to guess.')
     setLoading(true)
     const res =
       mode === 'in'

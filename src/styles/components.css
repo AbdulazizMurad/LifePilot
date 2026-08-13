@@ -51,6 +51,10 @@
 
 /* ---------- Inputs ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; }
+/* Fields sitting side by side (start/end times) must share the row evenly and
+   keep breathing room — narrow phones otherwise squash them together. */
+.row > .field { flex: 1 1 0; min-width: 0; }
+.row > .field + .field { margin-left: 4px; }
 .field > label { font-size: 13px; color: var(--text-2); font-weight: 600; }
 .input, .select, .textarea {
   width: 100%;

@@ -12,7 +12,8 @@
       "mcp__592a1e59-41a8-4f46-a56e-c993c72e9da0__execute_sql",
       "Bash(git add *)",
       "Bash(git -c 'user.name=Abdulaziz Murad' -c user.email=engabdulazizmurad@gmail.com commit -q -m ' *)",
-      "Bash(node scripts/generate-icons.mjs)"
+      "Bash(node scripts/generate-icons.mjs)",
+      "mcp__claude-in-chrome__tabs_context_mcp"
     ]
   }
 }

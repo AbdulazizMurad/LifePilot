@@ -124,7 +124,7 @@ export function AssistantPage() {
   }
 
   return (
-    <div className="page" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+    <div className="page page--chat">
       <Header title="LifePilot AI" subtitle="Your personal day organizer" />
 
       <div ref={scrollRef} className="ai-log grow" style={{ overflowY: 'auto', paddingBottom: 12 }}>
@@ -197,7 +197,7 @@ export function AssistantPage() {
         </div>
       )}
 
-      <div className="row" style={{ gap: 8, position: 'sticky', bottom: 0, paddingBottom: 8, background: 'transparent' }}>
+      <div className="row ai-composer" style={{ gap: 8 }}>
         <button className="btn btn--soft btn--icon" onClick={planToday} aria-label="Plan my day" title="Plan my day">
           <IconSparkle width={20} height={20} />
         </button>

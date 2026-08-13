@@ -45,7 +45,7 @@ export function DayTimeline({ day, events, blocks, onOpenTask, onOpenEvent }: Pr
         return (
           <div key={i}>
             {insertNow && (
-              <div className="tl-row" style={{ height: 14 }}>
+              <div className="tl-row tl-now-row">
                 <span className="tl-time" style={{ color: 'var(--accent)' }}>
                   {fmtTime(now)}
                 </span>

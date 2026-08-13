@@ -15,7 +15,10 @@ export const CATEGORIES = [
   'study',
   'personal',
   'health',
+  'chore',
   'errand',
+  'finance',
+  'social',
   'appointment',
 ] as const
 
@@ -25,7 +28,10 @@ export const CATEGORY_EMOJI: Record<string, string> = {
   study: '📚',
   personal: '🏠',
   health: '🩺',
-  errand: '🛒',
+  chore: '🧽', // washing the car, laundry, tidying
+  errand: '🛒', // going out to buy or collect something
+  finance: '💳',
+  social: '🧑‍🤝‍🧑',
   appointment: '📅',
 }
 
