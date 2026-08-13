@@ -26,17 +26,27 @@ export function NowPage() {
     [active, current],
   )
 
-  // Today's progress
-  const todays = useMemo(
-    () =>
-      tasks.filter((t) => {
-        const ref = t.scheduled_start ?? t.deadline
-        return ref && isSameDay(parseISO(ref), now)
-      }),
-    [tasks],
-  )
-  const doneToday = todays.filter((t) => t.status === 'done').length
-  const pct = todays.length ? Math.round((doneToday / todays.length) * 100) : 0
+  // Today's progress = what you finished today, over that plus what is still
+  // outstanding. Counting only dated tasks left the ring stuck at 0% for
+  // anything unscheduled, and measuring only finished work made the total
+  // shrink as you went, so one of two tasks read as 100%.
+  const { done, total, pct } = useMemo(() => {
+    const finishedToday = tasks.filter(
+      (t) => t.status === 'done' && t.completed_at && isSameDay(parseISO(t.completed_at), now),
+    )
+    const plannedToday = active.filter((t) => {
+      const ref = t.scheduled_start ?? t.deadline
+      return ref && isSameDay(parseISO(ref), now)
+    })
+    // With nothing scheduled for today, the whole open backlog is "today's work".
+    const outstanding = plannedToday.length ? plannedToday : active
+    const totalCount = finishedToday.length + outstanding.length
+    return {
+      done: finishedToday.length,
+      total: totalCount,
+      pct: totalCount ? Math.round((finishedToday.length / totalCount) * 100) : 0,
+    }
+  }, [tasks, active])
 
   const nextEvent = useMemo(
     () =>
@@ -118,7 +128,7 @@ export function NowPage() {
           <div>
             <strong style={{ fontSize: 15 }}>Today</strong>
             <div className="tiny muted">
-              {doneToday}/{todays.length || 0} done
+              {total ? `${done}/${total} done` : 'Nothing planned yet'}
             </div>
           </div>
         </div>

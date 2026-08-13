@@ -42,6 +42,8 @@ export interface Task {
   category: string
   scheduled_start: string | null // ISO
   scheduled_end: string | null // ISO
+  /** When the task was actually marked done — drives progress. */
+  completed_at: string | null
   ai_reason: string | null
   created_at: string
   updated_at: string
@@ -73,6 +75,7 @@ export type TaskInput = Partial<
     | 'category'
     | 'scheduled_start'
     | 'scheduled_end'
+    | 'completed_at'
     | 'ai_reason'
   >
 >

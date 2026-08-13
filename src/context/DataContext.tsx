@@ -84,8 +84,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const toggleDone = useCallback(async (task: Task) => {
     const next = task.status === 'done' ? 'todo' : 'done'
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)))
-    await supabase.from('tasks').update({ status: next }).eq('id', task.id)
+    const completed_at = next === 'done' ? new Date().toISOString() : null
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, status: next, completed_at } : t)),
+    )
+    await supabase.from('tasks').update({ status: next, completed_at }).eq('id', task.id)
   }, [])
 
   const addEvent = useCallback(
