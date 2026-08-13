@@ -18,7 +18,8 @@
       "Bash(timeout 120 git push origin main)",
       "mcp__74f873de-b56f-4f37-89ba-d01317e23560__deploy_to_vercel",
       "mcp__74f873de-b56f-4f37-89ba-d01317e23560__list_projects",
-      "mcp__74f873de-b56f-4f37-89ba-d01317e23560__get_project"
+      "mcp__74f873de-b56f-4f37-89ba-d01317e23560__get_project",
+      "Bash(npm run *)"
     ]
   }
 }

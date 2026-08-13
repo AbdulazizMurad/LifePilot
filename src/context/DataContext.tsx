@@ -30,12 +30,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [events, setEvents] = useState<EventItem[]>([])
-  const [loading, setLoading] = useState(false)
+  // Starts true: the first load is already on its way, and screens that branch
+  // on "does this user have anything yet" must not decide on an empty array.
+  const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
     if (!user) {
       setTasks([])
       setEvents([])
+      setLoading(false)
       return
     }
     setLoading(true)

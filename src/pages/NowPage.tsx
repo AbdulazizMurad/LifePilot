@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useData } from '@/context/DataContext'
 import { Header } from '@/components/Header'
 import { Button } from '@/components/ui/Button'
@@ -9,10 +10,11 @@ import type { Task } from '@/lib/types'
 import { pickNow, sortByUrgency } from '@/lib/scheduler'
 import { durationLabel, isSameDay, parseISO, fmtTime } from '@/lib/date'
 import { PRIORITY_META, CATEGORY_EMOJI } from '@/lib/ui'
-import { IconCheck, IconNow } from '@/components/ui/icons'
+import { IconCheck, IconNow, IconSparkle } from '@/components/ui/icons'
 
 export function NowPage() {
   const { tasks, events, toggleDone, updateTask } = useData()
+  const navigate = useNavigate()
   const [editTask, setEditTask] = useState<Task | null>(null)
 
   const now = new Date()
@@ -88,8 +90,22 @@ export function NowPage() {
       ) : (
         <div className="now-card center" style={{ flexDirection: 'column', textAlign: 'center', gap: 6 }}>
           <IconNow width={34} height={34} color="var(--accent)" />
-          <h2 style={{ margin: '8px 0 0' }}>All clear 🎉</h2>
-          <p className="muted">No tasks left. Add something or enjoy the break.</p>
+          {tasks.length === 0 ? (
+            <>
+              <h2 style={{ margin: '8px 0 0' }}>Let's fill your day</h2>
+              <p className="muted">
+                Tell LifePilot what's on your plate and it will schedule it around your week.
+              </p>
+              <Button variant="soft" style={{ marginTop: 12 }} onClick={() => navigate('/assistant')}>
+                <IconSparkle width={18} height={18} /> Talk to your Pilot
+              </Button>
+            </>
+          ) : (
+            <>
+              <h2 style={{ margin: '8px 0 0' }}>All clear 🎉</h2>
+              <p className="muted">Everything's done. Enjoy the break.</p>
+            </>
+          )}
         </div>
       )}
 

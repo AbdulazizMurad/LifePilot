@@ -11,6 +11,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { BottomNav, SideNav } from './components/BottomNav'
 import { QuickAdd } from './components/QuickAdd'
 import { IconLogo } from './components/ui/icons'
+import { useData } from './context/DataContext'
 
 function Splash() {
   return (
@@ -21,6 +22,19 @@ function Splash() {
       <span className="spinner" style={{ borderTopColor: 'var(--brand-ink)' }} />
     </div>
   )
+}
+
+/**
+ * Where to drop someone who opens the app without a specific destination.
+ * A brand-new account has nothing to show on a calendar, so send them to the
+ * Pilot — the one screen that is useful with no data, since it asks what's on
+ * their plate. Once they have something, "Now" is the right daily home.
+ */
+function Landing() {
+  const { tasks, events, loading } = useData()
+  if (loading) return <Splash />
+  const isNewHere = tasks.length === 0 && events.length === 0
+  return <Navigate to={isNewHere ? '/assistant' : '/now'} replace />
 }
 
 function AppLayout() {
@@ -37,7 +51,7 @@ function AppLayout() {
           <Route path="/now" element={<NowPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/now" replace />} />
+          <Route path="*" element={<Landing />} />
         </Routes>
         {showFab && <QuickAdd defaultDay={new Date()} />}
       </div>
