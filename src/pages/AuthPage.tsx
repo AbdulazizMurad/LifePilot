@@ -61,7 +61,7 @@ export function AuthPage() {
         {mode === 'up' && (
           <Field label="Your name">
             <TextInput
-              placeholder="Abdulaziz"
+              placeholder="e.g. Abdulaziz"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
             />
